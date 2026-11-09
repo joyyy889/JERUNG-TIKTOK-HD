@@ -205,7 +205,7 @@ async function processDocument(socket, message) {
     const inputProbe = await runProbe(inputPath);
     const inputSummary = getMediaSummary(inputProbe, inputStat.size);
 
-    await sendText(socket, jid, '🦈 Metadata berjaya dibaca. Sedang cuba repackaging MP4 tanpa re-encode…', message);
+    await sendText(socket, jid, '🦈 Metadata berjaya dibaca. Sedang menyediakan MP4 standard H.264/AAC…', message);
 
     // Output 1: standard MP4 for TikTok Studio (H.264 + AAC).
     // Keep the source streams when they already match; otherwise make a compatibility encode.
@@ -267,10 +267,10 @@ async function processDocument(socket, message) {
       fileName: path.basename(outputPath),
       caption:
         '🦈 *JERUNG TIKTOK HD — OUTPUT 1 (H.264 + AAC)*\n\n' +
-        `Saiz asal: ${(inputStat.size / (1024 * 1024)).toFixed(2)} MB\\n` +
-        `Saiz output: ${(outputStat.size / (1024 * 1024)).toFixed(2)} MB\\n` +
-        `Video: ${outputSummary.video.codec_name || 'Unknown'}\\n` +
-        `Resolusi: ${outputSummary.video.width || '?'} × ${outputSummary.video.height || '?'}\\n` +
+        `Saiz asal: ${(inputStat.size / (1024 * 1024)).toFixed(2)} MB\n` +
+        `Saiz output: ${(outputStat.size / (1024 * 1024)).toFixed(2)} MB\n` +
+        `Video: ${outputSummary.video.codec_name || 'Unknown'}\n` +
+        `Resolusi: ${outputSummary.video.width || '?'} × ${outputSummary.video.height || '?'}\n` +
         'Mod: MP4 standard untuk TikTok Studio; stream-copy jika sumber sudah H.264/AAC, selain itu encode H.264/AAC.'
     }, { quoted: message });
 
@@ -308,10 +308,10 @@ async function processDocument(socket, message) {
         fileName: path.basename(experimentalPath),
         caption:
           '🦈 *JERUNG TIKTOK HD — OUTPUT 2 (DUAL AUDIO)*\n\n' +
-          `Saiz: ${(experimentalStat.size / (1024 * 1024)).toFixed(2)} MB\\n` +
-          `Video: ${experimentalSummary.video.codec_name || 'Unknown'}\\n` +
-          `Audio stream: ${audioCount} (audio pertama diduplikasi)\\n` +
-          'Mod: Stream-copy daripada Output 1, tanpa re-encode.\\n' +
+          `Saiz: ${(experimentalStat.size / (1024 * 1024)).toFixed(2)} MB\n` +
+          `Video: ${experimentalSummary.video.codec_name || 'Unknown'}\n` +
+          `Audio stream: ${audioCount} (audio pertama diduplikasi)\n` +
+          'Mod: Stream-copy daripada Output 1, tanpa re-encode.\n' +
           'Audio asal diduplikasi sebagai track kedua. Uji di TikTok Studio; fail ini masih MP4 standard dan mungkin boleh dimainkan oleh media player biasa.'
       }, { quoted: message });
 
@@ -337,7 +337,7 @@ async function processDocument(socket, message) {
     logger.error({ err: error, jid, originalName }, 'Video processing failed');
     const detail = /melebihi had|melebihi had masa/.test(error.message)
       ? error.message
-      : 'Format/codec video ini mungkin tidak serasi untuk repackaging MP4 tanpa re-encode.';
+      : 'Format/codec video ini tidak dapat ditukar kepada MP4 H.264/AAC.';
     await sendText(
       socket,
       jid,
