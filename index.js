@@ -210,7 +210,8 @@ async function processDocument(socket, message) {
     // Output 1: standard MP4 for TikTok Studio (H.264 + AAC).
     // Keep the source streams when they already match; otherwise make a compatibility encode.
     const sourceIsH264 = String(inputSummary.video.codec_name).toLowerCase() === 'h264';
-    const sourceIsAac = !inputSummary.audio || String(inputSummary.audio.codec_name).toLowerCase() === 'aac';
+    const inputAudioStreams = inputProbe.streams.filter(stream => stream.codec_type === 'audio');
+    const sourceIsAac = inputAudioStreams.every(stream => String(stream.codec_name).toLowerCase() === 'aac');
 
     if (sourceIsH264 && sourceIsAac) {
       await runCommand(FFMPEG_PATH, [
@@ -297,7 +298,7 @@ async function processDocument(socket, message) {
       const experimentalProbe = await runProbe(experimentalPath);
       const experimentalSummary = getMediaSummary(experimentalProbe, experimentalStat.size);
       const audioCount = experimentalProbe.streams.filter(stream => stream.codec_type === 'audio').length;
-      if (experimentalSummary.video.codec_name !== inputSummary.video.codec_name || audioCount < 2) {
+      if (experimentalSummary.video.codec_name !== outputSummary.video.codec_name || audioCount < 2) {
         throw new Error('Output ujian tidak mengekalkan video asal atau tidak menghasilkan dua audio stream.');
       }
 
