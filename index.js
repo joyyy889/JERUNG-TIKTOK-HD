@@ -179,11 +179,12 @@ async function processDocument(socket, message) {
   }
 
   activeChats.add(jid);
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'jerung-tiktok-'));
-  const inputPath = path.join(tempDir, originalName);
-  const outputPath = path.join(tempDir, `${path.parse(originalName).name}_JERUNG.mp4`);
+  let tempDir;
 
   try {
+    tempDir = await mkdtemp(path.join(os.tmpdir(), 'jerung-tiktok-'));
+    const inputPath = path.join(tempDir, originalName);
+    const outputPath = path.join(tempDir, `${path.parse(originalName).name}_JERUNG.mp4`);
     await sendText(socket, jid, '🦈 Video diterima. Sedang memuat turun dan memeriksa metadata…', message);
     const buffer = await downloadMediaMessage(message, 'buffer', {}, {
       logger,
@@ -208,8 +209,7 @@ async function processDocument(socket, message) {
     await runCommand(FFMPEG_PATH, [
       '-hide_banner', '-loglevel', 'error', '-y',
       '-i', inputPath,
-      '-map', '0:v?',
-      '-map', '0:a?',
+      '-map', '0',
       '-map_metadata', '0',
       '-c', 'copy',
       '-movflags', '+faststart',
@@ -265,7 +265,7 @@ async function processDocument(socket, message) {
     );
   } finally {
     activeChats.delete(jid);
-    await rm(tempDir, { recursive: true, force: true }).catch(error => {
+    if (tempDir) await rm(tempDir, { recursive: true, force: true }).catch(error => {
       logger.warn({ err: error }, 'Could not remove temporary upload directory');
     });
   }
