@@ -6,6 +6,7 @@ import makeWASocket, {
   downloadMediaMessage
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
+import qrcode from 'qrcode-terminal';
 import ffprobeStatic from 'ffprobe-static';
 import ffmpegStatic from 'ffmpeg-static';
 import { spawn } from 'node:child_process';
@@ -336,14 +337,18 @@ async function startBot() {
     ...(version ? { version } : {}),
     auth: state,
     logger: pino({ level: 'silent' }),
-    printQRInTerminal: true,
     markOnlineOnConnect: false,
     syncFullHistory: false
   });
 
   socket.ev.on('creds.update', saveCreds);
 
-  socket.ev.on('connection.update', ({ connection, lastDisconnect }) => {
+  socket.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
+    if (qr) {
+      logger.info('WhatsApp QR diterima. Imbas QR di bawah menggunakan Linked Devices.');
+      qrcode.generate(qr, { small: true });
+    }
+
     if (connection === 'open') {
       logger.info({ bot: BOT_NAME }, 'WhatsApp connected');
       if (reconnectTimer) {
