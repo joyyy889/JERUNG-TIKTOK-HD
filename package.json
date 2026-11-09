@@ -16,6 +16,7 @@
     "dotenv": "^16.4.7",
     "ffmpeg-static": "^5.2.0",
     "ffprobe-static": "^3.1.0",
-    "pino": "^9.6.0"
+    "pino": "^9.6.0",
+    "qrcode-terminal": "^0.12.0"
   }
 }
