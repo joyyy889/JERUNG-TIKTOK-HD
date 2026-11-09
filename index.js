@@ -185,6 +185,7 @@ async function processDocument(socket, message) {
     tempDir = await mkdtemp(path.join(os.tmpdir(), 'jerung-tiktok-'));
     const inputPath = path.join(tempDir, originalName);
     const outputPath = path.join(tempDir, `${path.parse(originalName).name}_JERUNG.mp4`);
+    const experimentalPath = path.join(tempDir, `${path.parse(originalName).name}_JERUNG_2AUDIO_TEST.mp4`);
     await sendText(socket, jid, '🦈 Video diterima. Sedang memuat turun dan memeriksa metadata…', message);
     const buffer = await downloadMediaMessage(message, 'buffer', {}, {
       logger,
@@ -236,14 +237,64 @@ async function processDocument(socket, message) {
       mimetype: 'video/mp4',
       fileName: path.basename(outputPath),
       caption:
-        '🦈 *JERUNG TIKTOK HD — SELESAI*\n\n' +
-        `Saiz asal: ${(inputStat.size / (1024 * 1024)).toFixed(2)} MB\n` +
-        `Saiz output: ${(outputStat.size / (1024 * 1024)).toFixed(2)} MB\n` +
-        `Video: ${outputSummary.video.codec_name || 'Unknown'}\n` +
-        `Resolusi: ${outputSummary.video.width || '?'} × ${outputSummary.video.height || '?'}\n` +
-        'Mod: Repackaging / stream-copy (tanpa re-encode).\n' +
-        'Muat turun dokumen MP4 ini sebelum upload ke TikTok Studio.'
+        '🦈 *JERUNG TIKTOK HD — OUTPUT ASAL*\\n\\n' +
+        `Saiz asal: ${(inputStat.size / (1024 * 1024)).toFixed(2)} MB\\n` +
+        `Saiz output: ${(outputStat.size / (1024 * 1024)).toFixed(2)} MB\\n` +
+        `Video: ${outputSummary.video.codec_name || 'Unknown'}\\n` +
+        `Resolusi: ${outputSummary.video.width || '?'} × ${outputSummary.video.height || '?'}\\n` +
+        'Mod: Repackaging / stream-copy (tanpa re-encode).'
     }, { quoted: message });
+
+    // Experimental variant: duplicate the first audio stream as a second MP4 audio track.
+    // The original output above remains unchanged for a direct comparison.
+    if (inputSummary.audio) {
+      await runCommand(FFMPEG_PATH, [
+        '-hide_banner', '-loglevel', 'error', '-y',
+        '-i', inputPath,
+        '-map', '0',
+        '-map', '0:a:0',
+        '-map_metadata', '0',
+        '-c', 'copy',
+        '-movflags', '+faststart',
+        '-f', 'mp4',
+        experimentalPath
+      ]);
+
+      const experimentalStat = await stat(experimentalPath);
+      if (experimentalStat.size === 0 || experimentalStat.size > MAX_SIZE) {
+        throw new Error('Output ujian dua audio melebihi had 150 MB atau kosong.');
+      }
+
+      const experimentalProbe = await runProbe(experimentalPath);
+      const experimentalSummary = getMediaSummary(experimentalProbe, experimentalStat.size);
+      const audioCount = experimentalProbe.streams.filter(stream => stream.codec_type === 'audio').length;
+      if (experimentalSummary.video.codec_name !== inputSummary.video.codec_name || audioCount < 2) {
+        throw new Error('Output ujian tidak mengekalkan video asal atau tidak menghasilkan dua audio stream.');
+      }
+
+      await socket.sendMessage(jid, {
+        document: await readFile(experimentalPath),
+        mimetype: 'video/mp4',
+        fileName: path.basename(experimentalPath),
+        caption:
+          '🦈 *JERUNG TIKTOK HD — UJIAN 2 AUDIO*\\n\\n' +
+          `Saiz: ${(experimentalStat.size / (1024 * 1024)).toFixed(2)} MB\\n` +
+          `Video: ${experimentalSummary.video.codec_name || 'Unknown'}\\n` +
+          `Audio stream: ${audioCount} (audio pertama diduplikasi)\\n` +
+          'Mod: Stream-copy, tanpa re-encode.\\n' +
+          'Ini fail eksperimen untuk ujian TikTok Studio dan pemain media; tidak dijamin gagal dimainkan pada pemain biasa.'
+      }, { quoted: message });
+
+      logger.info({
+        jid,
+        originalName,
+        baselineBytes: outputStat.size,
+        experimentalBytes: experimentalStat.size,
+        audioCount
+      }, 'Experimental duplicate-audio output sent');
+    } else {
+      await sendText(socket, jid, '🦈 Sumber tiada audio stream, jadi ujian duplicate-audio tidak dibuat.', message);
+    }
 
     logger.info({
       jid,
@@ -251,7 +302,7 @@ async function processDocument(socket, message) {
       inputBytes: inputStat.size,
       outputBytes: outputStat.size,
       codec: outputSummary.video.codec_name
-    }, 'Video repackaged and sent');
+    }, 'Baseline video repackaged and sent');
   } catch (error) {
     logger.error({ err: error, jid, originalName }, 'Video processing failed');
     const detail = /melebihi had|melebihi had masa/.test(error.message)
