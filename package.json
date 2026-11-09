@@ -1,0 +1,19 @@
+{
+  "name": "jerung-tiktok-hd",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "JERUNG TikTok HD WhatsApp bot",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.18",
+    "dotenv": "^16.4.7",
+    "pino": "^9.6.0"
+  }
+}
