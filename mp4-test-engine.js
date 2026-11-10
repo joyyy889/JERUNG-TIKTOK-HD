@@ -1,9 +1,11 @@
 import { spawn } from 'node:child_process';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import ffmpegStatic from 'ffmpeg-static';
+import ffprobeStatic from 'ffprobe-static';
 
-const FFMPEG = process.env.FFMPEG_PATH || 'ffmpeg';
-const FFPROBE = process.env.FFPROBE_PATH || 'ffprobe';
+const FFMPEG = process.env.FFMPEG_PATH || ffmpegStatic || 'ffmpeg';
+const FFPROBE = process.env.FFPROBE_PATH || ffprobeStatic?.path || 'ffprobe';
 
 function run(command, args) {
   return new Promise((resolve, reject) => {
