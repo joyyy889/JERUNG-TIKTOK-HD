@@ -207,125 +207,108 @@ async function processDocument(socket, message) {
 
     await sendText(socket, jid, '🦈 Metadata berjaya dibaca. Sedang menyediakan MP4 standard H.264/AAC…', message);
 
-    // Output 1: standard MP4 for TikTok Studio (H.264 + AAC).
-    // Keep the source streams when they already match; otherwise make a compatibility encode.
-    const sourceIsH264 = String(inputSummary.video.codec_name).toLowerCase() === 'h264';
-    const inputAudioStreams = inputProbe.streams.filter(stream => stream.codec_type === 'audio');
-    const sourceIsAac = inputAudioStreams.every(stream => String(stream.codec_name).toLowerCase() === 'aac');
-
-    if (sourceIsH264 && sourceIsAac) {
-      await runCommand(FFMPEG_PATH, [
-        '-hide_banner', '-loglevel', 'error', '-y',
-        '-i', inputPath,
-        '-map', '0:v:0',
-        '-map', '0:a?',
-        '-map_metadata', '0',
-        '-c', 'copy',
-        '-movflags', '+faststart',
-        '-f', 'mp4',
-        outputPath
-      ]);
-    } else {
-      await runCommand(FFMPEG_PATH, [
-        '-hide_banner', '-loglevel', 'error', '-y',
-        '-i', inputPath,
-        '-map', '0:v:0',
-        '-map', '0:a?',
-        '-map_metadata', '0',
-        '-c:v', 'libx264',
-        '-preset', 'medium',
-        '-crf', '18',
-        '-pix_fmt', 'yuv420p',
-        '-c:a', 'aac',
-        '-b:a', '192k',
-        '-movflags', '+faststart',
-        '-f', 'mp4',
-        outputPath
-      ]);
-    }
+    // OUTPUT 1: H.264 MP4, video-only, fragmented MP4 layout (compatibility experiment).
+    // Fragmentation/video-only does NOT guarantee that ordinary players cannot play it.
+    await runCommand(FFMPEG_PATH, [
+      '-hide_banner', '-loglevel', 'error', '-y',
+      '-i', inputPath,
+      '-map', '0:v:0',
+      '-an',
+      '-map_metadata', '-1',
+      '-c:v', 'libx264',
+      '-preset', 'medium',
+      '-crf', '18',
+      '-pix_fmt', 'yuv420p',
+      '-movflags', '+empty_moov+frag_keyframe+default_base_moof',
+      '-f', 'mp4',
+      outputPath
+    ]);
 
     const outputStat = await stat(outputPath);
-    if (outputStat.size === 0) throw new Error('FFmpeg menghasilkan fail output kosong.');
-    if (outputStat.size > MAX_SIZE) {
-      throw new Error('Saiz output melebihi had penghantaran 150 MB. Fail asal tidak diubah.');
-    }
+    if (outputStat.size === 0) throw new Error('FFmpeg menghasilkan Output 1 kosong.');
+    if (outputStat.size > MAX_SIZE) throw new Error('Output 1 melebihi had penghantaran 150 MB.');
 
     const outputProbe = await runProbe(outputPath);
     const outputSummary = getMediaSummary(outputProbe, outputStat.size);
     const outputAudioStreams = outputProbe.streams.filter(stream => stream.codec_type === 'audio');
     if (String(outputSummary.video.codec_name).toLowerCase() !== 'h264') {
-      throw new Error('Output standard gagal disahkan sebagai video H.264.');
+      throw new Error('Output 1 gagal disahkan sebagai video H.264.');
     }
-    if (outputAudioStreams.some(stream => String(stream.codec_name).toLowerCase() !== 'aac')) {
-      throw new Error('Output standard gagal disahkan sebagai audio AAC.');
+    if (outputAudioStreams.length !== 0) {
+      throw new Error('Output 1 sepatutnya tidak mempunyai audio stream.');
     }
 
-    const outputBuffer = await readFile(outputPath);
     await socket.sendMessage(jid, {
-      document: outputBuffer,
+      document: await readFile(outputPath),
       mimetype: 'video/mp4',
       fileName: path.basename(outputPath),
       caption:
-        '🦈 *JERUNG TIKTOK HD — OUTPUT 1 (H.264 + AAC)*\n\n' +
-        `Saiz asal: ${(inputStat.size / (1024 * 1024)).toFixed(2)} MB\n` +
-        `Saiz output: ${(outputStat.size / (1024 * 1024)).toFixed(2)} MB\n` +
-        `Video: ${outputSummary.video.codec_name || 'Unknown'}\n` +
-        `Resolusi: ${outputSummary.video.width || '?'} × ${outputSummary.video.height || '?'}\n` +
-        'Mod: MP4 standard untuk TikTok Studio; stream-copy jika sumber sudah H.264/AAC, selain itu encode H.264/AAC.'
+        '🦈 *JERUNG TIKTOK HD — OUTPUT 1 (H.264 MP4 / VIDEO ONLY)*\\n\\n' +
+        `Saiz asal: ${(inputStat.size / (1024 * 1024)).toFixed(2)} MB\\n` +
+        `Saiz output: ${(outputStat.size / (1024 * 1024)).toFixed(2)} MB\\n` +
+        `Video: ${outputSummary.video.codec_name || 'Unknown'}\\n` +
+        `Resolusi: ${outputSummary.video.width || '?'} × ${outputSummary.video.height || '?'}\\n` +
+        'Audio: tiada. Layout fragmented MP4 digunakan sebagai eksperimen; status unplayable belum dijamin.'
     }, { quoted: message });
 
-    // Output 2: standards-compliant test MP4 with the first AAC audio track duplicated.
-    // It remains a valid MP4; duplicated audio does not guarantee incompatibility with media players.
-    if (outputAudioStreams.length > 0) {
-      await runCommand(FFMPEG_PATH, [
-        '-hide_banner', '-loglevel', 'error', '-y',
-        '-i', outputPath,
-        '-map', '0:v:0',
-        '-map', '0:a:0',
-        '-map', '0:a:0',
-        '-map_metadata', '0',
-        '-c', 'copy',
-        '-movflags', '+faststart',
-        '-f', 'mp4',
-        experimentalPath
-      ]);
-
-      const experimentalStat = await stat(experimentalPath);
-      if (experimentalStat.size === 0 || experimentalStat.size > MAX_SIZE) {
-        throw new Error('Output ujian dua audio melebihi had 150 MB atau kosong.');
-      }
-
-      const experimentalProbe = await runProbe(experimentalPath);
-      const experimentalSummary = getMediaSummary(experimentalProbe, experimentalStat.size);
-      const audioCount = experimentalProbe.streams.filter(stream => stream.codec_type === 'audio').length;
-      if (experimentalSummary.video.codec_name !== outputSummary.video.codec_name || audioCount < 2) {
-        throw new Error('Output ujian tidak mengekalkan video asal atau tidak menghasilkan dua audio stream.');
-      }
-
-      await socket.sendMessage(jid, {
-        document: await readFile(experimentalPath),
-        mimetype: 'video/mp4',
-        fileName: path.basename(experimentalPath),
-        caption:
-          '🦈 *JERUNG TIKTOK HD — OUTPUT 2 (DUAL AUDIO)*\n\n' +
-          `Saiz: ${(experimentalStat.size / (1024 * 1024)).toFixed(2)} MB\n` +
-          `Video: ${experimentalSummary.video.codec_name || 'Unknown'}\n` +
-          `Audio stream: ${audioCount} (audio pertama diduplikasi)\n` +
-          'Mod: Stream-copy daripada Output 1, tanpa re-encode.\n' +
-          'Audio asal diduplikasi sebagai track kedua. Uji di TikTok Studio; fail ini masih MP4 standard dan mungkin boleh dimainkan oleh media player biasa.'
-      }, { quoted: message });
-
-      logger.info({
-        jid,
-        originalName,
-        baselineBytes: outputStat.size,
-        experimentalBytes: experimentalStat.size,
-        audioCount
-      }, 'Experimental duplicate-audio output sent');
-    } else {
-      await sendText(socket, jid, '🦈 Sumber tiada audio stream, jadi ujian duplicate-audio tidak dibuat.', message);
+    // OUTPUT 2: same H.264 video plus a generated silent AAC dummy audio track.
+    const duration = Number(inputProbe.format?.duration);
+    if (!Number.isFinite(duration) || duration <= 0) {
+      throw new Error('Durasi sumber tidak sah; Output 2 dummy audio tidak dapat dijana.');
     }
 
+    await runCommand(FFMPEG_PATH, [
+      '-hide_banner', '-loglevel', 'error', '-y',
+      '-i', outputPath,
+      '-f', 'lavfi',
+      '-t', String(duration),
+      '-i', 'anullsrc=r=48000:cl=stereo',
+      '-map', '0:v:0',
+      '-map', '1:a:0',
+      '-c:v', 'copy',
+      '-c:a', 'aac',
+      '-b:a', '64k',
+      '-shortest',
+      '-map_metadata', '-1',
+      '-movflags', '+empty_moov+frag_keyframe+default_base_moof',
+      '-f', 'mp4',
+      experimentalPath
+    ]);
+
+    const experimentalStat = await stat(experimentalPath);
+    if (experimentalStat.size === 0 || experimentalStat.size > MAX_SIZE) {
+      throw new Error('Output 2 melebihi had 150 MB atau fail kosong.');
+    }
+
+    const experimentalProbe = await runProbe(experimentalPath);
+    const experimentalSummary = getMediaSummary(experimentalProbe, experimentalStat.size);
+    const experimentalAudioStreams = experimentalProbe.streams.filter(stream => stream.codec_type === 'audio');
+    if (String(experimentalSummary.video.codec_name).toLowerCase() !== 'h264' ||
+        experimentalAudioStreams.length !== 1 ||
+        String(experimentalAudioStreams[0].codec_name).toLowerCase() !== 'aac') {
+      throw new Error('Output 2 gagal disahkan sebagai H.264 dengan satu dummy AAC audio track.');
+    }
+
+    await socket.sendMessage(jid, {
+      document: await readFile(experimentalPath),
+      mimetype: 'video/mp4',
+      fileName: path.basename(experimentalPath),
+      caption:
+        '🦈 *JERUNG TIKTOK HD — OUTPUT 2 (H.264 + DUMMY AUDIO)*\\n\\n' +
+        `Saiz: ${(experimentalStat.size / (1024 * 1024)).toFixed(2)} MB\\n` +
+        `Video: ${experimentalSummary.video.codec_name || 'Unknown'}\\n` +
+        'Audio: 1 track AAC senyap (dummy audio)\\n' +
+        'Layout fragmented MP4 digunakan sebagai eksperimen; status unplayable dan penerimaan TikTok Studio perlu diuji.'
+    }, { quoted: message });
+
+    logger.info({
+      jid,
+      originalName,
+      output1Bytes: outputStat.size,
+      output2Bytes: experimentalStat.size,
+      output1AudioStreams: outputAudioStreams.length,
+      output2AudioStreams: experimentalAudioStreams.length
+    }, 'Both experimental outputs sent');
     logger.info({
       jid,
       originalName,
@@ -417,7 +400,7 @@ async function startBot() {
             '🦈 *SELAMAT DATANG KE JERUNG TIKTOK HD*\n\n' +
               'Sila hantar video anda dalam bentuk *Document / Dokumen*, bukan sebagai video biasa.\n\n' +
               'Format diterima: MP4 dan MOV. Had saiz: 150 MB.\n' +
-              'Bot menghasilkan dua MP4: Output 1 H.264/AAC untuk TikTok Studio, dan Output 2 dengan audio asal diduplikasi sebagai dua track.',
+              'Bot menghasilkan dua MP4 eksperimen: Output 1 H.264 video-only; Output 2 H.264 dengan satu dummy audio AAC senyap. Status unplayable dan penerimaan TikTok Studio perlu diuji.',
             message
           );
           logger.info({ jid: message.key.remoteJid }, 'Welcome message sent');
