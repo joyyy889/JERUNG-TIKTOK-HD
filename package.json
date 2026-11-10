@@ -6,7 +6,8 @@
   "description": "JERUNG TikTok HD WhatsApp bot",
   "scripts": {
     "start": "node index.js",
-    "dev": "node --watch index.js"
+    "dev": "node --watch index.js",
+    "test:mp4": "node mp4-test-engine.js"
   },
   "engines": {
     "node": ">=20"
