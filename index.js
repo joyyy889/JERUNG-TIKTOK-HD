@@ -171,7 +171,7 @@ async function processDocument(socket, message) {
   const allowedExtension = ['.mp4', '.mov'].includes(extension);
 
   if (!allowedMime && !allowedExtension) {
-    await sendText(socket, jid, '🦈 Sila hantar fail video MP4 atau MOV sahaja dalam bentuk Document / Dokumen.', message);
+    await sendText(socket, jid, '🦈 Sila hantar video MP4 atau MOV dalam bentuk Document / Dokumen.', message);
     return;
   }
   if (declaredSize > MAX_SIZE) {
@@ -185,9 +185,11 @@ async function processDocument(socket, message) {
   try {
     tempDir = await mkdtemp(path.join(os.tmpdir(), 'jerung-tiktok-'));
     const inputPath = path.join(tempDir, originalName);
-    const outputPath = path.join(tempDir, `${path.parse(originalName).name}_JERUNG.mp4`);
-    const experimentalPath = path.join(tempDir, `${path.parse(originalName).name}_JERUNG_2AUDIO_TEST.mp4`);
-    await sendText(socket, jid, '🦈 Video diterima. Sedang memuat turun dan memeriksa metadata…', message);
+    const baseName = path.parse(originalName).name;
+    const output1Path = path.join(tempDir, baseName + '_OUTPUT_1.mp4');
+    const output2Path = path.join(tempDir, baseName + '_OUTPUT_2.mp4');
+
+    await sendText(socket, jid, '🦈 Video diterima. Sedang memuat turun dan memeriksa fail asal…', message);
     const buffer = await downloadMediaMessage(message, 'buffer', {}, {
       logger,
       reuploadRequest: socket.updateMediaMessage
@@ -204,134 +206,125 @@ async function processDocument(socket, message) {
     const inputStat = await stat(inputPath);
     const inputProbe = await runProbe(inputPath);
     const inputSummary = getMediaSummary(inputProbe, inputStat.size);
+    const sourceDuration = Number(inputProbe.format?.duration);
 
-    await sendText(socket, jid, '🦈 Metadata berjaya dibaca. Sedang menyediakan MP4 standard H.264/AAC…', message);
+    await sendText(
+      socket,
+      jid,
+      '🦈 Video asal berjaya dibaca.\n' + inputSummary.text +
+      '\n\nSedang menghasilkan dua output C-Copy tanpa re-encode…',
+      message
+    );
 
-    // OUTPUT 1: H.264 MP4, video-only, fragmented MP4 layout (compatibility experiment).
-    // Fragmentation/video-only does NOT guarantee that ordinary players cannot play it.
+    // OUTPUT 1: stream-copy remux. No video/audio re-encoding.
+    // The WhatsApp message duration hint is set to 0; MP4 internal duration is not falsified.
     await runCommand(FFMPEG_PATH, [
       '-hide_banner', '-loglevel', 'error', '-y',
       '-i', inputPath,
-      '-map', '0:v:0',
-      '-an',
-      '-map_metadata', '-1',
-      '-c:v', 'libx264',
-      '-preset', 'medium',
-      '-crf', '18',
-      '-pix_fmt', 'yuv420p',
-      '-movflags', '+empty_moov+frag_keyframe+default_base_moof',
+      '-map', '0',
+      '-map_metadata', '0',
+      '-c', 'copy',
+      '-movflags', '+faststart',
       '-f', 'mp4',
-      outputPath
+      output1Path
     ]);
 
-    const outputStat = await stat(outputPath);
-    if (outputStat.size === 0) throw new Error('FFmpeg menghasilkan Output 1 kosong.');
-    if (outputStat.size > MAX_SIZE) throw new Error('Output 1 melebihi had penghantaran 150 MB.');
+    const output1Stat = await stat(output1Path);
+    if (!output1Stat.size) throw new Error('Output 1 kosong.');
+    if (output1Stat.size > MAX_SIZE) throw new Error('Output 1 melebihi had penghantaran 150 MB.');
+    const output1Probe = await runProbe(output1Path);
+    const output1Summary = getMediaSummary(output1Probe, output1Stat.size);
 
-    const outputProbe = await runProbe(outputPath);
-    const outputSummary = getMediaSummary(outputProbe, outputStat.size);
-    const outputAudioStreams = outputProbe.streams.filter(stream => stream.codec_type === 'audio');
-    if (String(outputSummary.video.codec_name).toLowerCase() !== 'h264') {
-      throw new Error('Output 1 gagal disahkan sebagai video H.264.');
-    }
-    if (outputAudioStreams.length !== 0) {
-      throw new Error('Output 1 sepatutnya tidak mempunyai audio stream.');
-    }
-
-    await socket.sendMessage(jid, {
-      document: await readFile(outputPath),
-      mimetype: 'video/mp4',
-      fileName: path.basename(outputPath),
-      caption:
-        '🦈 *JERUNG TIKTOK HD — OUTPUT 1 (H.264 MP4 / VIDEO ONLY)*\\n\\n' +
-        `Saiz asal: ${(inputStat.size / (1024 * 1024)).toFixed(2)} MB\\n` +
-        `Saiz output: ${(outputStat.size / (1024 * 1024)).toFixed(2)} MB\\n` +
-        `Video: ${outputSummary.video.codec_name || 'Unknown'}\\n` +
-        `Resolusi: ${outputSummary.video.width || '?'} × ${outputSummary.video.height || '?'}\\n` +
-        'Audio: tiada. Layout fragmented MP4 digunakan sebagai eksperimen; status unplayable belum dijamin.'
-    }, { quoted: message });
-
-    // OUTPUT 2: same H.264 video plus a generated silent AAC dummy audio track.
-    const duration = Number(inputProbe.format?.duration);
-    if (!Number.isFinite(duration) || duration <= 0) {
-      throw new Error('Durasi sumber tidak sah; Output 2 dummy audio tidak dapat dijana.');
-    }
-
+    // OUTPUT 2: stream-copy remux with generated timestamps where absent.
+    // FFmpeg writes fresh, internally consistent MP4 sample tables, including stts/stsc.
+    // No arbitrary atom edits and no stream re-encoding are performed.
     await runCommand(FFMPEG_PATH, [
       '-hide_banner', '-loglevel', 'error', '-y',
-      '-i', outputPath,
-      '-f', 'lavfi',
-      '-t', String(duration),
-      '-i', 'anullsrc=r=48000:cl=stereo',
-      '-map', '0:v:0',
-      '-map', '1:a:0',
-      '-c:v', 'copy',
-      '-c:a', 'aac',
-      '-b:a', '64k',
-      '-shortest',
-      '-map_metadata', '-1',
-      '-movflags', '+empty_moov+frag_keyframe+default_base_moof',
+      '-fflags', '+genpts',
+      '-i', inputPath,
+      '-map', '0',
+      '-map_metadata', '0',
+      '-c', 'copy',
+      '-avoid_negative_ts', 'make_zero',
+      '-movflags', '+faststart',
       '-f', 'mp4',
-      experimentalPath
+      output2Path
     ]);
 
-    const experimentalStat = await stat(experimentalPath);
-    if (experimentalStat.size === 0 || experimentalStat.size > MAX_SIZE) {
-      throw new Error('Output 2 melebihi had 150 MB atau fail kosong.');
-    }
+    const output2Stat = await stat(output2Path);
+    if (!output2Stat.size) throw new Error('Output 2 kosong.');
+    if (output2Stat.size > MAX_SIZE) throw new Error('Output 2 melebihi had penghantaran 150 MB.');
+    const output2Probe = await runProbe(output2Path);
+    const output2Summary = getMediaSummary(output2Probe, output2Stat.size);
 
-    const experimentalProbe = await runProbe(experimentalPath);
-    const experimentalSummary = getMediaSummary(experimentalProbe, experimentalStat.size);
-    const experimentalAudioStreams = experimentalProbe.streams.filter(stream => stream.codec_type === 'audio');
-    if (String(experimentalSummary.video.codec_name).toLowerCase() !== 'h264' ||
-        experimentalAudioStreams.length !== 1 ||
-        String(experimentalAudioStreams[0].codec_name).toLowerCase() !== 'aac') {
-      throw new Error('Output 2 gagal disahkan sebagai H.264 dengan satu dummy AAC audio track.');
+    const output1Video = output1Probe.streams.find(stream => stream.codec_type === 'video');
+    const output2Video = output2Probe.streams.find(stream => stream.codec_type === 'video');
+    if (output1Video?.codec_name !== inputSummary.video.codec_name ||
+        output2Video?.codec_name !== inputSummary.video.codec_name) {
+      throw new Error('Codec video berubah ketika C-Copy. Output tidak akan dihantar.');
     }
 
     await socket.sendMessage(jid, {
-      document: await readFile(experimentalPath),
+      video: await readFile(output1Path),
       mimetype: 'video/mp4',
-      fileName: path.basename(experimentalPath),
+      fileName: path.basename(output1Path),
+      seconds: 0,
       caption:
-        '🦈 *JERUNG TIKTOK HD — OUTPUT 2 (H.264 + DUMMY AUDIO)*\\n\\n' +
-        `Saiz: ${(experimentalStat.size / (1024 * 1024)).toFixed(2)} MB\\n` +
-        `Video: ${experimentalSummary.video.codec_name || 'Unknown'}\\n` +
-        'Audio: 1 track AAC senyap (dummy audio)\\n' +
-        'Layout fragmented MP4 digunakan sebagai eksperimen; status unplayable dan penerimaan TikTok Studio perlu diuji.'
+        '🦈 *JERUNG TIKTOK HD — OUTPUT 1*\n' +
+        'Kaedah: C-Copy / stream copy (tiada re-encode)\n' +
+        'Saiz: ' + (output1Stat.size / (1024 * 1024)).toFixed(2) + ' MB\n' +
+        'Codec video: ' + output1Video.codec_name + '\n' +
+        'Petunjuk durasi mesej WhatsApp: 0:00. Durasi dalaman MP4 tidak dipalsukan.\n' +
+        'Keserasian pemain dan Google Drive perlu diuji.'
     }, { quoted: message });
 
-    logger.info({
-      jid,
-      originalName,
-      output1Bytes: outputStat.size,
-      output2Bytes: experimentalStat.size,
-      output1AudioStreams: outputAudioStreams.length,
-      output2AudioStreams: experimentalAudioStreams.length
-    }, 'Both experimental outputs sent');
+    await socket.sendMessage(jid, {
+      video: await readFile(output2Path),
+      mimetype: 'video/mp4',
+      fileName: path.basename(output2Path),
+      ...(Number.isFinite(sourceDuration) && sourceDuration >= 0
+        ? { seconds: Math.floor(sourceDuration) }
+        : {}),
+      caption:
+        '🦈 *JERUNG TIKTOK HD — OUTPUT 2*\n' +
+        'Kaedah: C-Copy / stream copy (tiada re-encode)\n' +
+        'MP4 di-remux; timestamp dijana jika tiada dan sample tables stts/stsc ditulis semula secara konsisten.\n' +
+        'Durasi sumber: ' + formatDuration(sourceDuration) + '\n' +
+        'Saiz: ' + (output2Stat.size / (1024 * 1024)).toFixed(2) + ' MB\n' +
+        'Ini bukan manipulasi atom secara rawak. Keserasian Google Drive dan pemain lain perlu diuji.'
+    }, { quoted: message });
+
     logger.info({
       jid,
       originalName,
       inputBytes: inputStat.size,
-      outputBytes: outputStat.size,
-      codec: outputSummary.video.codec_name
-    }, 'Baseline video repackaged and sent');
+      output1Bytes: output1Stat.size,
+      output2Bytes: output2Stat.size,
+      inputCodec: inputSummary.video.codec_name,
+      output1Codec: output1Video.codec_name,
+      output2Codec: output2Video.codec_name,
+      output1Duration: output1Probe.format?.duration,
+      output2Duration: output2Probe.format?.duration
+    }, 'Both copy-only MP4 outputs sent as WhatsApp video messages');
   } catch (error) {
     logger.error({ err: error, jid, originalName }, 'Video processing failed');
-    const detail = /melebihi had|melebihi had masa/.test(error.message)
-      ? error.message
-      : 'Format/codec video ini tidak dapat ditukar kepada MP4 H.264/AAC.';
+    let detail = 'Fail ini tidak dapat di-remux sebagai MP4 tanpa re-encode. Codec atau struktur sumber mungkin tidak serasi.';
+    if (/melebihi had/.test(error.message)) detail = error.message;
+    if (/melebihi had masa/.test(error.message)) detail = error.message;
     await sendText(
       socket,
       jid,
-      `🦈 Bot tak dapat hasilkan MP4 untuk video ini. ${detail}\n\nFail asal tidak diubah. Cuba fail MP4/MOV lain.`,
+      '🦈 Bot tak dapat menghasilkan kedua-dua output C-Copy. ' + detail +
+      '\n\nTiada fallback re-encode dibuat. Fail asal tidak diubah.',
       message
     );
   } finally {
     activeChats.delete(jid);
-    if (tempDir) await rm(tempDir, { recursive: true, force: true }).catch(error => {
-      logger.warn({ err: error }, 'Could not remove temporary upload directory');
-    });
+    if (tempDir) {
+      await rm(tempDir, { recursive: true, force: true }).catch(error => {
+        logger.warn({ err: error }, 'Could not remove temporary upload directory');
+      });
+    }
   }
 }
 
