@@ -153,6 +153,78 @@ async function sendText(socket, jid, text, quoted) {
   await socket.sendMessage(jid, { text }, quoted ? { quoted } : {});
 }
 
+function readMp4Atoms(buffer, start = 0, end = buffer.length) {
+  const atoms = [];
+  let offset = start;
+  while (offset + 8 <= end) {
+    let size = buffer.readUInt32BE(offset);
+    const type = buffer.toString('ascii', offset + 4, offset + 8);
+    let headerSize = 8;
+    if (size === 1) {
+      if (offset + 16 > end) break;
+      const largeSize = buffer.readBigUInt64BE(offset + 8);
+      if (largeSize > BigInt(Number.MAX_SAFE_INTEGER)) break;
+      size = Number(largeSize);
+      headerSize = 16;
+    } else if (size === 0) {
+      size = end - offset;
+    }
+    if (size < headerSize || offset + size > end) break;
+    atoms.push({ type, start: offset, size, headerSize, payloadStart: offset + headerSize, end: offset + size });
+    offset += size;
+  }
+  return atoms;
+}
+
+function findMp4Atoms(buffer, wantedTypes) {
+  const found = [];
+  const containers = new Set(['moov', 'trak', 'mdia', 'minf', 'stbl', 'edts', 'dinf']);
+  function walk(start, end) {
+    for (const atom of readMp4Atoms(buffer, start, end)) {
+      if (wantedTypes.has(atom.type)) found.push(atom);
+      if (containers.has(atom.type)) walk(atom.payloadStart, atom.end);
+    }
+  }
+  walk(0, buffer.length);
+  return found;
+}
+
+function makeExperimentalOutputs(sourceBuffer) {
+  const topLevel = readMp4Atoms(sourceBuffer);
+  const moov = topLevel.find(atom => atom.type === 'moov');
+  const mdat = topLevel.find(atom => atom.type === 'mdat');
+  if (!moov || !mdat) throw new Error('MP4 asal mesti mempunyai atom moov dan mdat yang boleh dibaca.');
+
+  const outputA = Buffer.concat([
+    sourceBuffer.subarray(0, moov.start),
+    sourceBuffer.subarray(moov.end)
+  ]);
+
+  const outputB = Buffer.from(sourceBuffer);
+  const sttsAtoms = findMp4Atoms(outputB, new Set(['stts']));
+  if (!sttsAtoms.length) throw new Error('Atom stts tidak ditemui untuk Output B.');
+  for (const atom of sttsAtoms) {
+    if (atom.size < atom.headerSize + 8) throw new Error('Atom stts tidak lengkap.');
+    outputB.writeUInt32BE(0, atom.payloadStart + 4);
+  }
+
+  const outputC = Buffer.from(sourceBuffer);
+  const mdhdAtoms = findMp4Atoms(outputC, new Set(['mdhd']));
+  if (!mdhdAtoms.length) throw new Error('Atom mdhd tidak ditemui untuk Output C.');
+  for (const atom of mdhdAtoms) {
+    const version = outputC[atom.payloadStart];
+    const timescaleOffset = atom.payloadStart + (version === 1 ? 20 : 12);
+    if (timescaleOffset + 4 > atom.end) throw new Error('Atom mdhd tidak lengkap.');
+    outputC.writeUInt32BE(0, timescaleOffset);
+  }
+
+  return [
+    { label: 'A', suffix: 'OUTPUT_A_NO_MOOV.mp4', buffer: outputA, method: 'Atom moov dibuang (indeks MP4 tiada)' },
+    { label: 'B', suffix: 'OUTPUT_B_STTS.mp4', buffer: outputB, method: 'Entry timing stts dikosongkan' },
+    { label: 'C', suffix: 'OUTPUT_C_MDHD.mp4', buffer: outputC, method: 'Timescale mdhd ditetapkan kepada 0' }
+  ];
+}
+
 async function processDocument(socket, message) {
   const jid = message.key.remoteJid;
   const document = message.message?.documentMessage;
@@ -181,143 +253,54 @@ async function processDocument(socket, message) {
 
   activeChats.add(jid);
   let tempDir;
-
   try {
     tempDir = await mkdtemp(path.join(os.tmpdir(), 'jerung-tiktok-'));
     const inputPath = path.join(tempDir, originalName);
     const baseName = path.parse(originalName).name;
-    const output1Path = path.join(tempDir, baseName + '_OUTPUT_1.mp4');
-    const output2Path = path.join(tempDir, baseName + '_OUTPUT_2.mp4');
 
-    await sendText(socket, jid, '🦈 Video diterima. Sedang memuat turun dan memeriksa fail asal…', message);
+    await sendText(socket, jid, '🦈 Video diterima. Sedang memuat turun dan menyediakan tiga output eksperimen MP4…', message);
     const buffer = await downloadMediaMessage(message, 'buffer', {}, {
       logger,
       reuploadRequest: socket.updateMediaMessage
     });
 
-    if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
-      throw new Error('Muat turun media menghasilkan fail kosong.');
-    }
-    if (buffer.length > MAX_SIZE) {
-      throw new Error('Saiz video melebihi had 150 MB selepas dimuat turun.');
-    }
-
+    if (!Buffer.isBuffer(buffer) || buffer.length === 0) throw new Error('Muat turun media menghasilkan fail kosong.');
+    if (buffer.length > MAX_SIZE) throw new Error('Saiz video melebihi had 150 MB selepas dimuat turun.');
     await writeFile(inputPath, buffer);
-    const inputStat = await stat(inputPath);
+
     const inputProbe = await runProbe(inputPath);
+    const inputStat = await stat(inputPath);
     const inputSummary = getMediaSummary(inputProbe, inputStat.size);
-    const sourceDuration = Number(inputProbe.format?.duration);
+    const outputs = makeExperimentalOutputs(buffer);
 
-    await sendText(
-      socket,
-      jid,
-      '🦈 Video asal berjaya dibaca.\n' + inputSummary.text +
-      '\n\nSedang menghasilkan dua output C-Copy tanpa re-encode…',
-      message
-    );
-
-    // OUTPUT 1: stream-copy remux. No video/audio re-encoding.
-    // The WhatsApp message duration hint is set to 0; MP4 internal duration is not falsified.
-    await runCommand(FFMPEG_PATH, [
-      '-hide_banner', '-loglevel', 'error', '-y',
-      '-i', inputPath,
-      '-map', '0',
-      '-map_metadata', '0',
-      '-c', 'copy',
-      '-movflags', '+faststart',
-      '-f', 'mp4',
-      output1Path
-    ]);
-
-    const output1Stat = await stat(output1Path);
-    if (!output1Stat.size) throw new Error('Output 1 kosong.');
-    if (output1Stat.size > MAX_SIZE) throw new Error('Output 1 melebihi had penghantaran 150 MB.');
-    const output1Probe = await runProbe(output1Path);
-    const output1Summary = getMediaSummary(output1Probe, output1Stat.size);
-
-    // OUTPUT 2: stream-copy remux with generated timestamps where absent.
-    // FFmpeg writes fresh, internally consistent MP4 sample tables, including stts/stsc.
-    // No arbitrary atom edits and no stream re-encoding are performed.
-    await runCommand(FFMPEG_PATH, [
-      '-hide_banner', '-loglevel', 'error', '-y',
-      '-fflags', '+genpts',
-      '-i', inputPath,
-      '-map', '0',
-      '-map_metadata', '0',
-      '-c', 'copy',
-      '-avoid_negative_ts', 'make_zero',
-      '-movflags', '+faststart',
-      '-f', 'mp4',
-      output2Path
-    ]);
-
-    const output2Stat = await stat(output2Path);
-    if (!output2Stat.size) throw new Error('Output 2 kosong.');
-    if (output2Stat.size > MAX_SIZE) throw new Error('Output 2 melebihi had penghantaran 150 MB.');
-    const output2Probe = await runProbe(output2Path);
-    const output2Summary = getMediaSummary(output2Probe, output2Stat.size);
-
-    const output1Video = output1Probe.streams.find(stream => stream.codec_type === 'video');
-    const output2Video = output2Probe.streams.find(stream => stream.codec_type === 'video');
-    if (output1Video?.codec_name !== inputSummary.video.codec_name ||
-        output2Video?.codec_name !== inputSummary.video.codec_name) {
-      throw new Error('Codec video berubah ketika C-Copy. Output tidak akan dihantar.');
+    for (const output of outputs) {
+      if (!output.buffer.length) throw new Error('Output ' + output.label + ' kosong.');
+      if (output.buffer.length > MAX_SIZE) throw new Error('Output ' + output.label + ' melebihi had 150 MB.');
+      const outputPath = path.join(tempDir, baseName + '_' + output.suffix);
+      await writeFile(outputPath, output.buffer);
+      await socket.sendMessage(jid, {
+        document: output.buffer,
+        mimetype: 'video/mp4',
+        fileName: baseName + '_' + output.suffix,
+        caption:
+          '🦈 *JERUNG TIKTOK HD — OUTPUT ' + output.label + '*\n' +
+          'Eksperimen: ' + output.method + '\n' +
+          'Saiz: ' + (output.buffer.length / (1024 * 1024)).toFixed(2) + ' MB\n' +
+          'Fail ini sengaja diubah dan mungkin tidak boleh dimainkan atau dibuka oleh Files, Gallery, WhatsApp atau Google Drive.'
+      }, { quoted: message });
     }
-
-    await socket.sendMessage(jid, {
-      video: await readFile(output1Path),
-      mimetype: 'video/mp4',
-      fileName: path.basename(output1Path),
-      seconds: 0,
-      caption:
-        '🦈 *JERUNG TIKTOK HD — OUTPUT 1*\n' +
-        'Kaedah: C-Copy / stream copy (tiada re-encode)\n' +
-        'Saiz: ' + (output1Stat.size / (1024 * 1024)).toFixed(2) + ' MB\n' +
-        'Codec video: ' + output1Video.codec_name + '\n' +
-        'Petunjuk durasi mesej WhatsApp: 0:00. Durasi dalaman MP4 tidak dipalsukan.\n' +
-        'Keserasian pemain dan Google Drive perlu diuji.'
-    }, { quoted: message });
-
-    await socket.sendMessage(jid, {
-      video: await readFile(output2Path),
-      mimetype: 'video/mp4',
-      fileName: path.basename(output2Path),
-      ...(Number.isFinite(sourceDuration) && sourceDuration >= 0
-        ? { seconds: Math.floor(sourceDuration) }
-        : {}),
-      caption:
-        '🦈 *JERUNG TIKTOK HD — OUTPUT 2*\n' +
-        'Kaedah: C-Copy / stream copy (tiada re-encode)\n' +
-        'MP4 di-remux; timestamp dijana jika tiada dan sample tables stts/stsc ditulis semula secara konsisten.\n' +
-        'Durasi sumber: ' + formatDuration(sourceDuration) + '\n' +
-        'Saiz: ' + (output2Stat.size / (1024 * 1024)).toFixed(2) + ' MB\n' +
-        'Ini bukan manipulasi atom secara rawak. Keserasian Google Drive dan pemain lain perlu diuji.'
-    }, { quoted: message });
 
     logger.info({
       jid,
       originalName,
       inputBytes: inputStat.size,
-      output1Bytes: output1Stat.size,
-      output2Bytes: output2Stat.size,
-      inputCodec: inputSummary.video.codec_name,
-      output1Codec: output1Video.codec_name,
-      output2Codec: output2Video.codec_name,
-      output1Duration: output1Probe.format?.duration,
-      output2Duration: output2Probe.format?.duration
-    }, 'Both copy-only MP4 outputs sent as WhatsApp video messages');
+      outputs: outputs.map(output => ({ label: output.label, bytes: output.buffer.length, method: output.method })),
+      inputCodec: inputSummary.video.codec_name
+    }, 'Three experimental MP4 documents sent');
   } catch (error) {
-    logger.error({ err: error, jid, originalName }, 'Video processing failed');
-    let detail = 'Fail ini tidak dapat di-remux sebagai MP4 tanpa re-encode. Codec atau struktur sumber mungkin tidak serasi.';
-    if (/melebihi had/.test(error.message)) detail = error.message;
-    if (/melebihi had masa/.test(error.message)) detail = error.message;
-    await sendText(
-      socket,
-      jid,
-      '🦈 Bot tak dapat menghasilkan kedua-dua output C-Copy. ' + detail +
-      '\n\nTiada fallback re-encode dibuat. Fail asal tidak diubah.',
-      message
-    );
+    logger.error({ err: error, jid, originalName }, 'Experimental MP4 processing failed');
+    await sendText(socket, jid, '🦈 Bot tak dapat menyediakan tiga output eksperimen. ' +
+      (error.message || 'Ralat tidak diketahui.') + '\n\nFail asal tidak diubah.', message);
   } finally {
     activeChats.delete(jid);
     if (tempDir) {
@@ -391,9 +374,8 @@ async function startBot() {
             socket,
             message.key.remoteJid,
             '🦈 *SELAMAT DATANG KE JERUNG TIKTOK HD*\n\n' +
-              'Sila hantar video anda dalam bentuk *Document / Dokumen*.\n\n' +
-              'Format diterima: MP4 dan MOV. Had saiz: 150 MB.\n' +
-              'Bot menghasilkan dua output MP4 C-Copy tanpa re-encode dan menghantarnya sebagai mesej video WhatsApp. Output 1 menggunakan petunjuk durasi mesej 0:00; Output 2 menggunakan remux dengan timestamp/sample table yang dibina semula secara konsisten. Keserasian Google Drive dan pemain lain perlu diuji.',
+              'Sila hantar video MP4 atau MOV dalam bentuk *Document / Dokumen*.\n\n' +
+              'Had saiz: 150 MB. Bot menghasilkan tiga fail eksperimen MP4 (A, B dan C) dan menghantarnya sebagai Document. Fail sengaja diubah; tiada jaminan ia boleh dimainkan di Google Drive atau mana-mana pemain.',
             message
           );
           logger.info({ jid: message.key.remoteJid }, 'Welcome message sent');
