@@ -391,9 +391,9 @@ async function startBot() {
             socket,
             message.key.remoteJid,
             '🦈 *SELAMAT DATANG KE JERUNG TIKTOK HD*\n\n' +
-              'Sila hantar video anda dalam bentuk *Document / Dokumen*, bukan sebagai video biasa.\n\n' +
+              'Sila hantar video anda dalam bentuk *Document / Dokumen*.\n\n' +
               'Format diterima: MP4 dan MOV. Had saiz: 150 MB.\n' +
-              'Bot menghasilkan dua MP4 eksperimen: Output 1 H.264 video-only; Output 2 H.264 dengan satu dummy audio AAC senyap. Status unplayable dan penerimaan TikTok Studio perlu diuji.',
+              'Bot menghasilkan dua output MP4 C-Copy tanpa re-encode dan menghantarnya sebagai mesej video WhatsApp. Output 1 menggunakan petunjuk durasi mesej 0:00; Output 2 menggunakan remux dengan timestamp/sample table yang dibina semula secara konsisten. Keserasian Google Drive dan pemain lain perlu diuji.',
             message
           );
           logger.info({ jid: message.key.remoteJid }, 'Welcome message sent');
