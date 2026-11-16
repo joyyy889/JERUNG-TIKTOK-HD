@@ -207,6 +207,11 @@ export function enqueue(id) {
 }
 
 export async function recoverQueuedJobs() {
+  // A process restart may interrupt active jobs; return them to the durable queue.
+  await db.execute(
+    "UPDATE jobs SET status = 'queued', updated_at = ? WHERE status = 'processing'",
+    [new Date().toISOString()]
+  );
   const [rows] = await db.query("SELECT id FROM jobs WHERE status = 'queued' ORDER BY created_at ASC");
   for (const row of rows) queue.push(row.id);
   pump();
