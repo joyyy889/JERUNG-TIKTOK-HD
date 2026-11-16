@@ -6,7 +6,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import multer from 'multer';
-import { db, publicJob } from './database.js';
+import { db, initDatabase, getJob, listCompletedJobs, publicJob } from './database.js';
 import { createJob, recoverQueuedJobs } from './processor.js';
 
 const app = express();
@@ -50,15 +50,22 @@ const upload = multer({
   limits: { fileSize: maxUploadMb * 1024 * 1024, files: 1 }
 });
 
-app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'jerung-studio-api' }));
+app.get('/health', async (_req, res, next) => {
+  try {
+    await db.query('SELECT 1');
+    res.json({ status: 'ok', service: 'jerung-studio-api', database: 'mysql' });
+  } catch (error) {
+    next(error);
+  }
+});
 
 app.post('/api/videos', requireApiKey, (req, res, next) => {
-  upload.single('video')(req, res, error => {
+  upload.single('video')(req, res, async error => {
     if (error) return next(error);
     try {
       if (!req.file) return res.status(400).json({ error: 'Upload one video using the video field.' });
-      const id = createJob(req.file, req.file.originalname);
-      const row = db.prepare('SELECT * FROM jobs WHERE id = ?').get(id);
+      const id = await createJob(req.file, req.file.originalname);
+      const row = await getJob(id);
       return res.status(202).json({ job: publicJob(row) });
     } catch (err) {
       if (req.file?.path) fs.rmSync(req.file.path, { force: true });
@@ -67,23 +74,35 @@ app.post('/api/videos', requireApiKey, (req, res, next) => {
   });
 });
 
-app.get('/api/jobs/:id', requireApiKey, (req, res) => {
-  const row = db.prepare('SELECT * FROM jobs WHERE id = ?').get(req.params.id);
-  if (!row) return res.status(404).json({ error: 'Job not found' });
-  res.json({ job: publicJob(row) });
-});
-
-app.get('/api/videos', requireApiKey, (_req, res) => {
-  const rows = db.prepare("SELECT * FROM jobs WHERE status = 'completed' ORDER BY created_at DESC LIMIT 100").all();
-  res.json({ videos: rows.map(publicJob) });
-});
-
-app.get('/api/videos/:id/download', requireApiKey, (req, res) => {
-  const row = db.prepare("SELECT * FROM jobs WHERE id = ? AND status = 'completed'").get(req.params.id);
-  if (!row || !row.output_path || !fs.existsSync(row.output_path)) {
-    return res.status(404).json({ error: 'Processed video not found' });
+app.get('/api/jobs/:id', requireApiKey, async (req, res, next) => {
+  try {
+    const row = await getJob(req.params.id);
+    if (!row) return res.status(404).json({ error: 'Job not found' });
+    res.json({ job: publicJob(row) });
+  } catch (error) {
+    next(error);
   }
-  res.download(row.output_path, `${row.id}.mp4`);
+});
+
+app.get('/api/videos', requireApiKey, async (_req, res, next) => {
+  try {
+    const rows = await listCompletedJobs(100);
+    res.json({ videos: rows.map(publicJob) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/videos/:id/download', requireApiKey, async (req, res, next) => {
+  try {
+    const row = await getJob(req.params.id);
+    if (!row || row.status !== 'completed' || !row.output_path || !fs.existsSync(row.output_path)) {
+      return res.status(404).json({ error: 'Processed video not found' });
+    }
+    res.download(row.output_path, `${row.id}.mp4`);
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.use((error, _req, res, _next) => {
@@ -94,10 +113,17 @@ app.use((error, _req, res, _next) => {
   res.status(status).json({ error: status === 500 ? 'Server error' : error.message });
 });
 
-app.listen(port, host, () => {
-  // Jobs interrupted by a restart are queued again; processing remains sequential by default.
-  db.prepare("UPDATE jobs SET status = 'queued', updated_at = ? WHERE status = 'processing'")
-    .run(new Date().toISOString());
-  console.log(`JERUNG STUDIO API listening on http://${host}:${port}`);
-  recoverQueuedJobs();
+async function start() {
+  await initDatabase();
+  app.listen(port, host, () => {
+    console.log(`JERUNG STUDIO API listening on http://${host}:${port} (MySQL)`);
+    recoverQueuedJobs().catch(error => {
+      console.error('Failed to recover queued jobs:', error);
+    });
+  });
+}
+
+start().catch(error => {
+  console.error('JERUNG STUDIO API startup failed:', error);
+  process.exitCode = 1;
 });
