@@ -217,13 +217,13 @@ export async function recoverQueuedJobs() {
   pump();
 }
 
-export async function createJob(file, originalName) {
+export async function createJob(file, originalName, userId) {
   const id = randomUUID();
   const inputPath = path.join(uploadDir, `${id}.upload`);
   const now = new Date().toISOString();
   fs.renameSync(file.path, inputPath);
   try {
-    await insertJob({ id, originalName, inputPath, now });
+    await insertJob({ id, userId, originalName, inputPath, now });
   } catch (error) {
     await fs.promises.rename(inputPath, file.path).catch(() => {});
     throw error;
