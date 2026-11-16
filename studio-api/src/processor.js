@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { db, updateJob } from './database.js';
+import { db, getJob, insertJob, updateJob } from './database.js';
 
 const uploadDir = path.resolve(process.env.UPLOAD_DIR || './data/uploads');
 const outputDir = path.resolve(process.env.OUTPUT_DIR || './data/outputs');
@@ -14,6 +14,7 @@ fs.mkdirSync(outputDir, { recursive: true });
 
 const queue = [];
 let active = 0;
+let pumping = false;
 
 function run(command, args, timeoutMs = 60 * 60 * 1000) {
   return new Promise((resolve, reject) => {
@@ -39,7 +40,7 @@ function run(command, args, timeoutMs = 60 * 60 * 1000) {
 }
 
 export async function probe(filePath) {
-  const { stdout, stderr } = await new Promise((resolve, reject) => {
+  const { stdout } = await new Promise((resolve, reject) => {
     const child = spawn(ffprobe, [
       '-v', 'error', '-show_format', '-show_streams', '-of', 'json', filePath
     ], { stdio: ['ignore', 'pipe', 'pipe'] });
@@ -48,7 +49,7 @@ export async function probe(filePath) {
     child.stdout.on('data', chunk => { out += chunk.toString(); });
     child.stderr.on('data', chunk => { err += chunk.toString(); });
     child.on('error', reject);
-    child.on('close', code => code === 0 ? resolve({ stdout: out, stderr: err }) : reject(new Error(err || 'FFprobe could not read this video')));
+    child.on('close', code => code === 0 ? resolve({ stdout: out }) : reject(new Error(err || 'FFprobe could not read this video')));
   });
   const raw = JSON.parse(stdout);
   const video = raw.streams?.find(stream => stream.codec_type === 'video');
@@ -98,7 +99,7 @@ const AUDIO_CODECS = new Set(['aac', 'mp3', 'alac']);
 async function processJob(job) {
   const inputPath = job.input_path;
   const outputPath = path.join(outputDir, `${job.id}.mp4`);
-  updateJob(job.id, { status: 'processing', updated_at: new Date().toISOString() });
+  await updateJob(job.id, { status: 'processing', updated_at: new Date().toISOString() });
 
   try {
     const input = await probe(inputPath);
@@ -108,12 +109,10 @@ async function processJob(job) {
     const audioCompatible = !hasAudio || input.audio.every(stream => AUDIO_CODECS.has(stream.codec));
     let mode;
 
-    // Strict pass-through: an already compatible MP4 is copied byte-for-byte.
     if (isMp4Container(input) && VIDEO_CODECS.has(sourceCodec) && audioCompatible) {
       await fs.promises.copyFile(inputPath, outputPath);
       mode = 'strict-pass-through';
     } else if (VIDEO_CODECS.has(sourceCodec)) {
-      // Remux streams without video re-encoding. Convert only incompatible audio.
       const args = [
         '-hide_banner', '-loglevel', 'error', '-y', '-i', inputPath,
         '-map', '0:v:0', '-map', '0:a?', '-map_metadata', '0', '-map_chapters', '0',
@@ -143,7 +142,7 @@ async function processJob(job) {
       throw new Error('Output verification failed: audio codec is not MP4-compatible.');
     }
 
-    updateJob(job.id, {
+    await updateJob(job.id, {
       status: 'completed',
       output_path: outputPath,
       processing_mode: mode,
@@ -154,7 +153,7 @@ async function processJob(job) {
     });
   } catch (error) {
     await fs.promises.rm(outputPath, { force: true }).catch(() => {});
-    updateJob(job.id, {
+    await updateJob(job.id, {
       status: 'failed',
       error_message: String(error.message || error).slice(0, 2000),
       updated_at: new Date().toISOString()
@@ -178,16 +177,27 @@ async function encodeFallback(inputPath, outputPath, codec, hasAudio) {
   await run(ffmpeg, args);
 }
 
-function pump() {
-  while (active < concurrency && queue.length) {
-    const id = queue.shift();
-    const job = db.prepare('SELECT * FROM jobs WHERE id = ?').get(id);
-    if (!job || job.status !== 'queued') continue;
-    active++;
-    processJob(job).finally(() => {
-      active--;
-      pump();
-    });
+async function pump() {
+  if (pumping) return;
+  pumping = true;
+  try {
+    while (active < concurrency && queue.length) {
+      const id = queue.shift();
+      const job = await getJob(id);
+      if (!job || job.status !== 'queued') continue;
+      active++;
+      processJob(job).catch(error => {
+        console.error(`Job ${id} processing failed:`, error);
+      }).finally(() => {
+        active--;
+        pump();
+      });
+    }
+  } catch (error) {
+    console.error('Job queue database error:', error);
+  } finally {
+    pumping = false;
+    if (active < concurrency && queue.length) queueMicrotask(pump);
   }
 }
 
@@ -196,20 +206,23 @@ export function enqueue(id) {
   pump();
 }
 
-export function recoverQueuedJobs() {
-  const rows = db.prepare("SELECT id FROM jobs WHERE status = 'queued'").all();
-  for (const row of rows) enqueue(row.id);
+export async function recoverQueuedJobs() {
+  const [rows] = await db.query("SELECT id FROM jobs WHERE status = 'queued' ORDER BY created_at ASC");
+  for (const row of rows) queue.push(row.id);
+  pump();
 }
 
-export function createJob(file, originalName) {
+export async function createJob(file, originalName) {
   const id = randomUUID();
   const inputPath = path.join(uploadDir, `${id}.upload`);
-  fs.renameSync(file.path, inputPath);
   const now = new Date().toISOString();
-  db.prepare(`
-    INSERT INTO jobs (id, original_name, input_path, status, created_at, updated_at)
-    VALUES (?, ?, ?, 'queued', ?, ?)
-  `).run(id, String(originalName).slice(0, 255), inputPath, now, now);
+  fs.renameSync(file.path, inputPath);
+  try {
+    await insertJob({ id, originalName, inputPath, now });
+  } catch (error) {
+    await fs.promises.rename(inputPath, file.path).catch(() => {});
+    throw error;
+  }
   enqueue(id);
   return id;
 }
