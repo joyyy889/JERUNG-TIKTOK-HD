@@ -3,3 +3,61 @@
 @media(max-width:650px){.sidebar{transform:translateX(-110%);width:255px;transition:.2s}.sidebar.open{transform:translateX(0);box-shadow:15px 0 50px #0009}.close,.hamb{display:grid;background:none;border:0;color:#aaa}.close{margin-left:auto}.brand .close svg{width:17px}main{margin:0}header{height:57px;padding:0 14px}.content{padding:24px 14px}.heading{align-items:flex-start;flex-direction:column;gap:12px}.heading h1{font-size:33px}.stats{grid-template-columns:1fr}.right{grid-template-columns:1fr}.panel{padding:14px}.drop{min-height:230px}footer{font-size:7px;gap:10px;flex-wrap:wrap}}
 
 .login-shell{min-height:100vh;background:radial-gradient(ellipse at 50% 35%,#28201a 0,#111 52%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}.login-card{width:min(100%,410px);background:#191919;border:1px solid #34302c;border-radius:18px;padding:42px 34px;text-align:center;box-shadow:0 24px 90px #0008}.login-mark{width:54px;height:54px;margin:0 auto 23px;background:var(--orange);color:#111;border-radius:14px;display:grid;place-items:center;font-size:34px;font-weight:900}.login-mark span{color:white}.login-card h1{font-size:25px;letter-spacing:1px;margin:13px 0 8px}.login-card h1 i{color:var(--orange);font-style:normal}.login-card>p{color:#999;font-size:12px;margin:0 0 25px}.google-button{width:100%;height:48px;border:1px solid #555;background:#f5f5f5;color:#202020;border-radius:8px;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:12px}.google-g{font-size:19px;font-weight:900;color:#4285f4}.login-foot{display:flex;align-items:center;justify-content:center;gap:7px;color:#777;font-size:9px;margin-top:23px}.login-foot svg{width:13px;color:var(--green)}.login-caption{color:#555;font-size:8px;letter-spacing:2px;margin-top:25px}.login-error{background:#321d1b;border:1px solid #63332e;color:#ffb2a8;padding:10px;border-radius:7px;font-size:10px;margin:-8px 0 15px}.user>div img,.avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}.user section{min-width:0;flex:1}.user section b,.user section small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:135px}.logout{border:0;background:transparent;color:#888;padding:6px}.logout svg{width:15px}.logout:hover{color:var(--orange)}
+
+
+/* JERUNG STUDIO — bright homepage theme */
+:root{color:#17243a;background:#f4f8ff;--bg:#f4f8ff;--panel:#fff;--line:#dce6f3;--muted:#64748b;--orange:#1769ff;--green:#0d9b73;color-scheme:light}
+body{background:linear-gradient(180deg,#f7fbff 0%,#edf5ff 100%);color:#17243a}
+.sidebar{background:#fff;border-right:1px solid #dce6f3;box-shadow:8px 0 28px #244b7a0a}
+.mark{background:linear-gradient(135deg,#1769ff,#31c7ed);color:#fff;box-shadow:0 8px 18px #1769ff30}
+.mark span{color:#d8f8ff}
+.brand b{color:#17243a}.brand i,.heading h1 i{color:#1769ff}
+.brand small,.overline{color:#8293aa}
+.sidebar a{color:#65758e}
+.sidebar a.selected{background:#eaf2ff;color:#1558c8}
+.sidebar a.selected svg{color:#1769ff}
+.storage{background:#f5f9ff;border-color:#dce8f8}
+.storage small{color:#6c7e96}.storage em{color:#1769ff}
+.storage>b{color:#1b2c46}.storage b span,.storage p{color:#8190a5}
+.track{background:#dce7f5}
+.user{border-color:#e3ebf5}.user>div,.avatar{background:#e6f0ff;color:#1769ff}
+.user b{color:#20314b}.user small{color:#8290a4}
+header{background:#ffffffd9;border-color:#e2eaf5;color:#7b8ba2;backdrop-filter:blur(12px)}
+header>div span{color:#b2bfd0}header>div b{color:#243650}
+header aside label{color:#61738d}
+.heading h1{color:#172b49}.heading p{color:#71829a}
+.private,.panelhead>label{color:#1761d5;background:#edf5ff;border:1px solid #d5e6ff}
+.stats article,.panel{background:#fff;border-color:#e0e9f4;box-shadow:0 8px 26px #2b56850a}
+.stats article>svg{background:#eaf3ff;color:#1769ff}
+.stats small,.stats p{color:#7e8da2}.stats b{color:#1c3150}
+.panelhead small{color:#1769ff}.panel h2{color:#1b2f4c}
+.drop{border:1.5px dashed #9dbce8;background:radial-gradient(ellipse at 50% 30%,#e8f5ff,#f8fbff 72%)}
+.cloud{color:#1769ff}.drop h3{color:#203653}.drop p{color:#7487a1}
+.drop>b{color:#506680}
+.primary{background:linear-gradient(100deg,#1769ff,#13b9d6);color:#fff;box-shadow:0 8px 18px #1769ff2e}
+.primary:hover{filter:brightness(1.05);transform:translateY(-1px)}
+.secondary{background:#e9f1fc;color:#315477}
+.drop>small{color:#8496ad}
+.notice{color:#72839a}.notice b{color:#2c4464}.notice svg{color:#0d9b73}
+.rule{border-color:#e8eef6;color:#73839a}.rule b{color:#2b405e}
+.hint{color:#71839c}
+.tip{background:linear-gradient(120deg,#eef7ff,#f3fbff);border:1px solid #dcecff}
+.tip>svg{color:#1769ff}.tip b{color:#25415f}.tip p{color:#6d829c}
+.empty svg{color:#8ca4c2}.empty b{color:#334b69}.empty p{color:#8292a8}
+.file>svg{color:#1769ff}.file b{color:#263c5b}.file small{color:#7d8da3}.file label{color:#1769ff}
+footer{color:#8a9ab0}footer span{color:#6d8dbb}
+.hamb,.close{color:#657b98}
+.sidebar.open{box-shadow:15px 0 50px #294c7330}
+.login-shell{background:radial-gradient(ellipse at 50% 25%,#dff3ff 0,#f4f8ff 55%,#edf3ff 100%)}
+.login-card{background:#fff;border:1px solid #dce8f6;box-shadow:0 24px 80px #35649a18}
+.login-mark{background:linear-gradient(135deg,#1769ff,#31c7ed);color:#fff;box-shadow:0 10px 24px #1769ff35}
+.login-mark span{color:#d8f8ff}
+.login-card h1{color:#1c3150}.login-card h1 i{color:#1769ff}
+.login-card>p{color:#71839a}
+.google-button{border:1px solid #d8e3f0;background:#fff;color:#263b59;box-shadow:0 3px 10px #274b750b}
+.google-button:hover{background:#f7fbff}
+.login-foot{color:#7c8da4}.login-foot svg{color:#0d9b73}
+.login-caption{color:#8297b2}.login-error{background:#fff1ef;border-color:#ffd2cb;color:#b5473c}
+.user>div img,.avatar img{border:2px solid #dceaff}
+.logout{color:#8292a8}.logout:hover{color:#1769ff}
+@media(max-width:650px){header{background:#ffffffed}.sidebar{background:#fff}}
