@@ -95,6 +95,9 @@ app.use((error, _req, res, _next) => {
 });
 
 app.listen(port, host, () => {
+  // Jobs interrupted by a restart are queued again; processing remains sequential by default.
+  db.prepare("UPDATE jobs SET status = 'queued', updated_at = ? WHERE status = 'processing'")
+    .run(new Date().toISOString());
   console.log(`JERUNG STUDIO API listening on http://${host}:${port}`);
   recoverQueuedJobs();
 });
