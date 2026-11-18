@@ -1,0 +1,14 @@
+{
+  "name": "jerung-tiktok-hd-video-engine",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "RTX Fury-inspired, stream-preserving MP4 optimizer for JERUNG TIKTOK HD",
+  "scripts": {
+    "optimize": "node src/cli.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
