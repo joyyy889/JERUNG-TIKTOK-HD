@@ -63,7 +63,19 @@ $('run').addEventListener('click',async()=>{
   metrics('source', [['Video codec',s.codec],['Resolution',s.width+' × '+s.height],['FPS',s.fps],['Duration',duration(data.source.durationSeconds)],['Pixel format',s.pixelFormat],['Color transfer',s.colorTransfer],['Audio streams',(data.source.audio||[]).length],['File size',bytes(data.source.sizeBytes)]]);
   metrics('output', [['Video codec',o.codec],['Resolution',o.width+' × '+o.height],['FPS',o.fps],['Duration',duration(data.output.durationSeconds)],['Pixel format',o.pixelFormat],['Color transfer',o.colorTransfer],['Audio streams',(data.output.audio||[]).length],['File size',bytes(data.output.sizeBytes)]]);
   $('frames').textContent=JSON.stringify({settings:p.settings,frameTypes:p.frameTypes.frameTypes,sourceFrameTypes:p.gopComparison.source,outputFrameTypes:p.gopComparison.output,keyframePositionsChanged:p.gopComparison.keyframePositionsChanged,validation:p.validation},null,2);
-  $('download').href=data.downloadUrl;$('expiry').textContent='Output will be deleted automatically in about '+data.expiresInMinutes+' minutes.';
+  $('download').onclick=async event=>{
+   event.preventDefault();
+   const link=$('download');link.textContent='PREPARING DOWNLOAD…';link.style.pointerEvents='none';
+   try{
+    const fileResponse=await fetch(data.downloadUrl,{headers:{Authorization:'Bearer '+key}});
+    if(!fileResponse.ok)throw new Error('Download link expired or access was denied.');
+    const blob=await fileResponse.blob(),url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download='jerung-tiktok-hd-gop.mp4';document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+   }catch(downloadError){$('status').textContent='Download error: '+downloadError.message}
+   finally{link.textContent='DOWNLOAD OUTPUT MP4';link.style.pointerEvents='auto'}
+  };
+  $('expiry').textContent='Output will be deleted automatically in about '+data.expiresInMinutes+' minutes.';
   $('results').style.display='block';$('status').textContent='Processing complete. Review the comparison before downloading.';
  }catch(err){$('status').textContent='Error: '+err.message}
  finally{$('run').disabled=false}
