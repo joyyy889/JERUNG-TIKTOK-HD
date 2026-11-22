@@ -117,7 +117,7 @@ export function validatePreservedProperties(before, after) {
 async function packetHashes(file) {
   const { stdout } = await run(FFPROBE, [
     '-v', 'error', '-show_packets', '-show_data_hash', 'sha256',
-    '-show_entries', 'packet=stream_index,codec_type,data_hash',
+    '-show_entries', 'packet=stream_index,codec_type,data_hash,pts_time,dts_time,duration_time,flags',
     '-of', 'json', file
   ], { timeoutMs: TIMEOUT_MS, maxOutput: 96 * 1024 * 1024 });
   const parsed = JSON.parse(stdout);
