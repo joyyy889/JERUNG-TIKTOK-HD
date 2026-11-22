@@ -1,29 +1,39 @@
-# JERUNG TIKTOK HD — RTX Fury-style video engine
+# JERUNG TIKTOK HD — experimental media-preserving engine
 
-This is an isolated Node.js video-engine module added to the repository. It does not change the existing `studio-web` frontend. The current repository did not contain the WhatsApp bot/backend entry point, so this module is exposed as a CLI and is ready to be called by the VPS bot when that backend source is added.
+This branch contains an isolated engine prototype. It does not alter the studio-web frontend or connect to a production bot/backend.
 
-## What it does
+## Current processing policy
 
-1. **Probe first:** reads codec, resolution, frame rate, duration and audio streams with FFprobe.
-2. **Original / stream-copy path:** remuxes MP4/MOV to MP4 using FFmpeg `-c copy` and `-movflags +faststart`. It does not invoke a video encoder.
-3. **Integrity checks:** compares FFprobe packet SHA-256 hashes and decoded `framemd5` checksums before accepting the stream-copy output.
-4. **Property checks:** rejects output if resolution, frame rate, duration or the presence of audio changes unexpectedly.
-5. **One fallback only:** if remux or integrity verification fails, it performs one H.264 fallback encode, with no scaling and passthrough frame timing. AAC audio is used in this fallback.
-6. **Optional NVIDIA path:** set `JERUNG_USE_NVENC=1` to use `h264_nvenc` only when the installed FFmpeg build exposes that encoder. Otherwise it uses `libx264`.
+**Verified stream-copy/remux only.** The engine never silently re-encodes. It maps all input streams, carries metadata and chapters, writes an MP4 with fast-start layout, then verifies the result before publishing it.
 
-## Requirements
+1. Probe source streams with FFprobe.
+2. Remux with FFmpeg `-map 0 -c copy`.
+3. Compare source/output packet SHA-256 hashes and decoded video frame checksums.
+4. Validate video codec, resolution, nominal frame rate, duration, pixel format, bit depth/profile, color signalling, audio stream configuration and stream inventory.
+5. Publish the temporary output only after every check passes.
 
-- Node.js 20+
-- FFmpeg and FFprobe installed on the VPS and available in PATH
-- For NVIDIA encoding: compatible NVIDIA GPU, driver and FFmpeg build with `h264_nvenc`
+If any check fails, processing stops and returns an error. There is no automatic H.264/AAC fallback. This is deliberate: a generic H.264 8-bit fallback can damage HEVC, 10-bit, HDR/HLG/PQ or Dolby Vision sources, change audio, and increase file size. A future encoder path must be codec- and color-aware, opt-in, and separately tested.
 
-## Run
+## Analysis mode
+
+The analysis command reports codec/profile, dimensions, frame-rate fields, pixel format, bit depth, color primaries/transfer/matrix/range, aspect ratios, audio stream properties, video packet count, keyframe packet indexes, packet-duration variation and timestamp coverage.
+
+```bash
+cd video-engine
+npm run analyze -- /path/to/input.mp4
+```
+
+This packet inspection is diagnostic, not a complete H.264/HEVC reference-dependency or closed-GOP proof. Keyframe flags alone do not prove that arbitrary segments can be independently concatenated.
+
+## Optimize mode
 
 ```bash
 cd video-engine
 npm test
 npm run optimize -- /path/to/input.mp4 /path/to/output.mp4
 ```
+
+Requirements: Node.js 20+, FFmpeg and FFprobe in PATH (or set `FFMPEG_PATH` / `FFPROBE_PATH`).
 
 Environment variables:
 
@@ -33,12 +43,22 @@ Environment variables:
 | `FFPROBE_PATH` | `ffprobe` | FFprobe executable |
 | `MAX_INPUT_BYTES` | `157286400` | Maximum input size (150 MiB) |
 | `FFMPEG_TIMEOUT_MS` | `900000` | Per-process timeout |
-| `JERUNG_USE_NVENC` | `0` | Enable NVENC for the fallback encode |
 
-## Important limits — what “RTX Fury-style” means here
+## KilatFrame comparison: evidence vs hypothesis
 
-This implements the reproducible, low-risk part of the researched workflow: container remuxing, fast-start layout, stream preservation, metadata carry-over and integrity verification. It does **not** promise to bypass TikTok's server-side transcoding; no reliable public evidence proves any optimizer can guarantee that.
+The ORI/KilatFrame sample comparison previously recorded in the project notes found matching stream-level properties and very similar decoded output, while hundreds of video packet/frame hashes differed and most audio packets matched. This establishes that the output was not a byte-identical remux. It does **not** establish whether KilatFrame uses selective re-encoding, bitstream rewriting, GOP restructuring or another technique.
 
-The research also discussed editing MP4 sample tables (`stts`, `ctts`, `stsc`), changing brands/handler fields and adding “ghost”/inflated sample entries. These are not automatically applied here. They can invalidate chunk offsets, timestamps, sample counts or playback, and the research did not establish that they improve TikTok's output. They should only be added after a separate fixture-based MP4 box parser/writer and device playback tests exist.
+This prototype therefore implements the safe, reproducible baseline first. It does not claim to clone KilatFrame or guarantee TikTok upload behavior. TikTok may still transcode uploaded media on its servers.
 
-The fallback is intentionally a last resort and does not upscale, downscale or force a new nominal frame rate. Re-encoded output cannot have identical packet/frame hashes by definition, so its report clearly labels those checks as not applicable.
+## Deliberately not implemented yet
+
+- Segment-level selective re-encoding or GOP splicing. Arbitrary H.264/HEVC segment joins can break reference frames, SPS/PPS compatibility, DTS/PTS continuity, audio alignment and playback.
+- MP4 sample-table manipulation (`stts`, `ctts`, `stsc`, chunk offsets or sample counts). These require a dedicated parser/writer and fixture-based validation.
+- HDR10/Dolby Vision metadata rewriting or RPU preservation.
+- Website upload/backend integration, storage, queueing or VPS deployment.
+
+## Test coverage and remaining validation
+
+Unit tests cover preservation guards for codec, resolution, FPS, color/bit-depth signalling and audio configuration. Before production use, run real-media fixtures covering H.264, HEVC, VFR, HDR10/HLG, multiple audio tracks and MOV inputs. Compare packet/frame hashes, SSIM/PSNR (for any future encode path), GOP/keyframes, timestamps, audio sync, file size/bitrate and playback on iOS/Android.
+
+No production branch or deployment is changed by this experimental branch.
