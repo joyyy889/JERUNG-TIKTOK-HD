@@ -3,11 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "RTX Fury-inspired, stream-preserving MP4 optimizer for JERUNG TIKTOK HD",
+  "description": "JERUNG TIKTOK HD video analysis, verified remux and experimental H.264 GOP re-encode engine",
   "scripts": {
     "optimize": "node src/cli.js",
     "test": "node --test",
-    "analyze": "node src/cli.js analyze"
+    "analyze": "node src/cli.js analyze",
+    "gop": "node src/cli.js gop"
   },
   "engines": {
     "node": ">=20"
