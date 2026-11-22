@@ -88,6 +88,10 @@ export function validatePreservedProperties(before, after) {
     throw new Error(\`Resolution changed: ${a.width}x${a.height} -> ${b.width}x${b.height}\`);
   }
   if (a.codec_name !== b.codec_name) throw new Error(\`Video codec changed: ${a.codec_name} -> ${b.codec_name}\`);
+  if ((a.sample_aspect_ratio ?? null) !== (b.sample_aspect_ratio ?? null) ||
+      (a.display_aspect_ratio ?? null) !== (b.display_aspect_ratio ?? null)) {
+    throw new Error('Sample or display aspect ratio changed');
+  }
   if (JSON.stringify(colorSignature(a)) !== JSON.stringify(colorSignature(b))) {
     throw new Error('Pixel format, bit depth, profile or color/HDR signalling changed');
   }
