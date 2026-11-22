@@ -1,9 +1,9 @@
 import { access, mkdir, rename, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { parseRate, probe, run } from './optimizer.js';
 
 const FFMPEG = process.env.FFMPEG_PATH || 'ffmpeg';
-const FFPROBE = process.env.FFPROBE_PATH || 'ffprobe';
 const MAX_INPUT_BYTES = Number(process.env.MAX_INPUT_BYTES || 150 * 1024 * 1024);
 const TIMEOUT_MS = Number(process.env.FFMPEG_TIMEOUT_MS || 15 * 60 * 1000);
 
@@ -195,7 +195,7 @@ export async function rebuildGopVideo(input, output, options = {}) {
     input: inputPath, output: '', source: before, ...options
   });
   const tempPath = path.join(path.dirname(outputPath),
-    `.${path.basename(outputPath, '.mp4')}-gop-${process.pid}-${Date.now()}.tmp.mp4`);
+    `.${path.basename(outputPath, '.mp4')}-gop-${randomUUID()}.tmp.mp4`);
   args[args.length - 1] = tempPath;
   try {
     await run(FFMPEG, args, { timeoutMs: TIMEOUT_MS });
