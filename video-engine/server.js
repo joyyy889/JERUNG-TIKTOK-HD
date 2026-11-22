@@ -99,13 +99,17 @@ app.post('/api/process', (req, res) => {
   if (activeJobs >= MAX_CONCURRENT) {
     return res.status(429).json({ error: 'Server is busy processing another video. Please try again shortly.' });
   }
+  activeJobs++;
   upload.single('video')(req, res, async error => {
     if (error) {
+      activeJobs--;
       const status = error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
       return res.status(status).json({ error: error.message || 'Upload failed.' });
     }
-    if (!req.file) return res.status(400).json({ error: 'Please select an MP4 or MOV file.' });
-    activeJobs++;
+    if (!req.file) {
+      activeJobs--;
+      return res.status(400).json({ error: 'Please select an MP4 or MOV file.' });
+    }
     const id = randomUUID();
     const inputPath = req.file.path;
     const outputPath = path.join(WORK_DIR, `${id}-jerung-gop.mp4`);
