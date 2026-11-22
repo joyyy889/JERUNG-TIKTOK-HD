@@ -93,6 +93,10 @@ export function buildGopArgs({ input, output, source, gopSeconds = 2, bFrames = 
     '-movflags', '+faststart',
     output
   ];
+  for (const [field, option] of [['color_primaries', '-color_primaries'], ['color_transfer', '-color_trc'], ['color_space', '-colorspace'], ['color_range', '-color_range']]) {
+    const value = video[field];
+    if (value && value !== 'unknown' && value !== 'unspecified') args.splice(args.length - 1, 0, option, value);
+  }
   return { args, settings: { fps, gopSeconds, maxKeyint, minKeyint, bFrames, crf, preset, width: video.width, height: video.height } };
 }
 
@@ -138,6 +142,11 @@ function validateGopOutput(before, after, inputFrames, outputFrames) {
     throw new Error('Resolution changed during GOP re-encode');
   }
   if (inputVideo.pix_fmt !== outputVideo.pix_fmt) throw new Error('Pixel format changed during GOP re-encode');
+  for (const field of ['color_primaries', 'color_transfer', 'color_space', 'color_range']) {
+    if ((inputVideo[field] ?? null) !== (outputVideo[field] ?? null)) {
+      throw new Error(`Color/HDR signalling changed during GOP re-encode: ${field}`);
+    }
+  }
   if ((inputVideo.sample_aspect_ratio ?? null) !== (outputVideo.sample_aspect_ratio ?? null)) {
     throw new Error('Sample aspect ratio changed during GOP re-encode');
   }
@@ -162,6 +171,15 @@ function validateGopOutput(before, after, inputFrames, outputFrames) {
   }
   if (audioStreams(before).length !== audioStreams(after).length) {
     throw new Error('Audio stream count changed');
+  }
+  const inputAudio = audioStreams(before)[0];
+  const outputAudio = audioStreams(after)[0];
+  if (inputAudio && outputAudio) {
+    const inputOffset = Number(inputAudio.start_time) - Number(inputVideo.start_time);
+    const outputOffset = Number(outputAudio.start_time) - Number(outputVideo.start_time);
+    if (Number.isFinite(inputOffset) && Number.isFinite(outputOffset) && Math.abs(inputOffset - outputOffset) > 0.05) {
+      throw new Error(`Audio/video start offset changed: ${inputOffset} -> ${outputOffset}`);
+    }
   }
   return {
     codec: outputVideo.codec_name,
@@ -202,7 +220,9 @@ export async function rebuildGopVideo(input, output, options = {}) {
     const after = await probe(tempPath);
     const outputFrames = await countDecodedFrames(tempPath);
     const properties = validateGopOutput(before, after, inputFrames, outputFrames);
-    const frameTypes = await frameTypeSummary(tempPath);
+    const [sourceFrameTypes, frameTypes] = await Promise.all([
+      frameTypeSummary(inputPath), frameTypeSummary(tempPath)
+    ]);
     if (frameTypes.frameCount !== outputFrames) {
       throw new Error('FFprobe frame-type inspection count does not match decoded frame count');
     }
@@ -218,6 +238,11 @@ export async function rebuildGopVideo(input, output, options = {}) {
       settings,
       properties,
       frameTypes,
+      gopComparison: {
+        source: sourceFrameTypes.frameTypes,
+        output: frameTypes.frameTypes,
+        keyframePositionsChanged: JSON.stringify(sourceFrameTypes.keyframes.map(item => item.frame)) !== JSON.stringify(frameTypes.keyframes.map(item => item.frame))
+      },
       source: {
         codec: inputConfig.video.codec_name,
         fps: inputConfig.fps,
