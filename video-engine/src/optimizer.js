@@ -16,7 +16,7 @@ export function run(command, args, { timeoutMs = TIMEOUT_MS, maxOutput = 8 * 102
     let settled = false;
     const timer = setTimeout(() => {
       child.kill('SIGKILL');
-      finish(new Error(\`${command} timed out after ${timeoutMs}ms\`));
+      finish(new Error(`${command} timed out after ${timeoutMs}ms`));
     }, timeoutMs);
 
     const collect = (target, chunk) => {
@@ -24,7 +24,7 @@ export function run(command, args, { timeoutMs = TIMEOUT_MS, maxOutput = 8 * 102
       else stderr += chunk.toString();
       if (stdout.length + stderr.length > maxOutput) {
         child.kill('SIGKILL');
-        finish(new Error(\`${command} output exceeded safety limit\`));
+        finish(new Error(`${command} output exceeded safety limit`));
       }
     };
     child.stdout.on('data', chunk => collect('stdout', chunk));
@@ -32,7 +32,7 @@ export function run(command, args, { timeoutMs = TIMEOUT_MS, maxOutput = 8 * 102
     child.on('error', error => finish(error));
     child.on('close', code => {
       if (code === 0) finish(null, { stdout, stderr });
-      else finish(new Error(\`${command} exited with code ${code}: ${stderr.slice(-4000)}\`));
+      else finish(new Error(`${command} exited with code ${code}: ${stderr.slice(-4000)}`));
     });
 
     function finish(error, result) {
@@ -85,9 +85,9 @@ export function validatePreservedProperties(before, after) {
   const b = primaryVideo(after);
   if (!a || !b) throw new Error('Input or output has no video stream');
   if (a.width !== b.width || a.height !== b.height) {
-    throw new Error(\`Resolution changed: ${a.width}x${a.height} -> ${b.width}x${b.height}\`);
+    throw new Error(`Resolution changed: ${a.width}x${a.height} -> ${b.width}x${b.height}`);
   }
-  if (a.codec_name !== b.codec_name) throw new Error(\`Video codec changed: ${a.codec_name} -> ${b.codec_name}\`);
+  if (a.codec_name !== b.codec_name) throw new Error(`Video codec changed: ${a.codec_name} -> ${b.codec_name}`);
   if ((a.sample_aspect_ratio ?? null) !== (b.sample_aspect_ratio ?? null) ||
       (a.display_aspect_ratio ?? null) !== (b.display_aspect_ratio ?? null)) {
     throw new Error('Sample or display aspect ratio changed');
@@ -97,9 +97,9 @@ export function validatePreservedProperties(before, after) {
   }
   const fpsA = parseRate(a.avg_frame_rate) ?? parseRate(a.r_frame_rate);
   const fpsB = parseRate(b.avg_frame_rate) ?? parseRate(b.r_frame_rate);
-  if (!near(fpsA, fpsB, 0.01)) throw new Error(\`Frame rate changed: ${fpsA} -> ${fpsB}\`);
+  if (!near(fpsA, fpsB, 0.01)) throw new Error(`Frame rate changed: ${fpsA} -> ${fpsB}`);
   if (!near(duration(before), duration(after), 0.25)) {
-    throw new Error(\`Duration changed: ${duration(before)}s -> ${duration(after)}s\`);
+    throw new Error(`Duration changed: ${duration(before)}s -> ${duration(after)}s`);
   }
   const audioA = audioSignature(before);
   const audioB = audioSignature(after);
@@ -126,7 +126,7 @@ async function packetHashes(file) {
   ], { timeoutMs: TIMEOUT_MS, maxOutput: 96 * 1024 * 1024 });
   const parsed = JSON.parse(stdout);
   return (parsed.packets ?? []).map(packet =>
-    \`${packet.stream_index}:${packet.codec_type}:${packet.data_hash ?? "missing"}\`
+    `${packet.stream_index}:${packet.codec_type}:${packet.data_hash ?? "missing"}`
   );
 }
 
@@ -222,14 +222,14 @@ export async function optimizeVideo(input, output) {
   if (!/\.mp4$/i.test(outputPath)) throw new Error('Output filename must end in .mp4');
   const inputStat = await stat(inputPath);
   if (inputStat.size > MAX_INPUT_BYTES) {
-    throw new Error(\`Input exceeds limit of ${Math.round(MAX_INPUT_BYTES / 1024 / 1024)} MB\`);
+    throw new Error(`Input exceeds limit of ${Math.round(MAX_INPUT_BYTES / 1024 / 1024)} MB`);
   }
   await access(inputPath);
   await mkdir(path.dirname(outputPath), { recursive: true });
   const before = await probe(inputPath);
   if (!primaryVideo(before)) throw new Error('Input contains no video stream');
   const tempPath = path.join(path.dirname(outputPath),
-    \`.${path.basename(outputPath, ".mp4")}-${randomUUID()}-tmp.mp4\`);
+    `.${path.basename(outputPath, ".mp4")}-${randomUUID()}-tmp.mp4`);
 
   try {
     // Safe baseline: preserve every stream and never silently transcode.
@@ -252,6 +252,6 @@ export async function optimizeVideo(input, output) {
     };
   } catch (error) {
     await rm(tempPath, { force: true });
-    throw new Error(\`Safe remux was not verified; no re-encode was attempted. ${error.message}\`);
+    throw new Error(`Safe remux was not verified; no re-encode was attempted. ${error.message}`);
   }
 }
