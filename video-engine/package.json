@@ -6,7 +6,8 @@
   "description": "RTX Fury-inspired, stream-preserving MP4 optimizer for JERUNG TIKTOK HD",
   "scripts": {
     "optimize": "node src/cli.js",
-    "test": "node --test"
+    "test": "node --test",
+    "analyze": "node src/cli.js analyze"
   },
   "engines": {
     "node": ">=20"
