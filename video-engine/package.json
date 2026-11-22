@@ -8,7 +8,12 @@
     "optimize": "node src/cli.js",
     "test": "node --test",
     "analyze": "node src/cli.js analyze",
-    "gop": "node src/cli.js gop"
+    "gop": "node src/cli.js gop",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "multer": "^2.0.2"
   },
   "engines": {
     "node": ">=20"
