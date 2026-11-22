@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#090909">
+<title>JERUNG TIKTOK HD — GOP Lab</title>
+<style>
+:root{color-scheme:dark;--bg:#090909;--panel:#141414;--line:#292929;--muted:#969696;--text:#f4f4f4;--orange:#ff7a1a}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -20%,#292018 0,transparent 48%),var(--bg);color:var(--text);font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,sans-serif}
+main{width:min(920px,calc(100% - 32px));margin:0 auto;padding:48px 0 72px}
+header{margin-bottom:28px}.eyebrow{color:var(--orange);font-size:11px;font-weight:800;letter-spacing:.22em}
+h1{font-size:clamp(30px,6vw,48px);line-height:1.05;letter-spacing:-.045em;margin:10px 0}
+.sub{color:var(--muted);max-width:650px}.panel{background:linear-gradient(145deg,#191919,#101010);border:1px solid var(--line);border-radius:18px;padding:22px;margin:16px 0}
+label{display:block;font-size:13px;font-weight:700;margin-bottom:8px}.field{width:100%;background:#090909;border:1px solid #333;border-radius:10px;padding:13px;color:var(--text);outline:none}.field:focus{border-color:var(--orange)}
+.drop{border:1px dashed #555;border-radius:14px;padding:30px 16px;text-align:center;background:#101010}.drop input{max-width:100%;margin-top:12px}
+button,.download{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:10px;padding:13px 18px;background:var(--orange);color:#17100a;font-weight:850;text-decoration:none;cursor:pointer}
+button:disabled{opacity:.45;cursor:wait}.row{display:flex;gap:12px;align-items:end;flex-wrap:wrap}.row>div{flex:1;min-width:220px}
+.note,.muted{color:var(--muted);font-size:12px}.status{margin-top:14px;color:var(--orange);min-height:22px}.results{display:none}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.metric{background:#0b0b0b;border:1px solid var(--line);border-radius:12px;padding:13px;min-width:0}.metric small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em}.metric strong{display:block;font-size:16px;overflow-wrap:anywhere;margin-top:4px}
+h2{font-size:18px;margin:0 0 14px}.tag{display:inline-block;border:1px solid #414141;border-radius:99px;padding:4px 9px;color:#c9c9c9;font-size:11px}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;color:#ccc;background:#090909;border:1px solid var(--line);padding:14px;border-radius:10px;font-size:11px;max-height:280px;overflow:auto}
+footer{color:#666;font-size:11px;margin-top:26px}
+@media(max-width:560px){main{padding-top:30px}.panel{padding:16px}.grid{grid-template-columns:1fr}.row>div{min-width:100%}}
+</style>
+</head>
+<body><main>
+<header><div class="eyebrow">JERUNG LAB / EXPERIMENTAL</div><h1>TIKTOK HD<br><span style="color:var(--orange)">GOP ENGINE</span></h1><p class="sub">Upload an original video, inspect its metadata, rebuild the H.264 I/P/B-frame and GOP structure, then compare the validated MP4 output.</p></header>
+<section class="panel">
+<div class="row"><div><label for="key">Website access key</label><input class="field" id="key" type="password" autocomplete="current-password" placeholder="Enter Railway APP_ACCESS_KEY"></div><div><label for="video">Original video (MP4 / MOV)</label><input id="video" class="field" type="file" accept="video/mp4,video/quicktime,.mp4,.mov"></div></div>
+<p class="note">Current experimental profile: H.264, 8-bit SDR yuv420p only · Maximum upload 150 MB · Output audio is stream-copied.</p>
+<button id="run" type="button">PROCESS VIDEO</button><div class="status" id="status" role="status"></div>
+</section>
+<section class="panel results" id="results">
+<div class="row" style="justify-content:space-between"><h2>Processing report</h2><span class="tag">FFPROBE + FFMPEG</span></div>
+<div class="grid" id="summary"></div>
+<div style="margin-top:22px"><h2>Source metadata</h2><div class="grid" id="source"></div></div>
+<div style="margin-top:22px"><h2>Output metadata</h2><div class="grid" id="output"></div></div>
+<div style="margin-top:22px"><h2>Frame / GOP comparison</h2><pre id="frames"></pre></div>
+<a class="download" id="download" href="#" style="margin-top:16px">DOWNLOAD OUTPUT MP4</a>
+<p class="note" id="expiry"></p>
+</section>
+<footer>Private test interface. Files are temporary and automatically deleted after the retention period. Do not upload private or sensitive videos.</footer>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const bytes=n=>{if(n==null)return '—';const u=['B','KB','MB','GB'];let i=0,v=n;while(v>=1024&&i<u.length-1){v/=1024;i++}return v.toFixed(i?2:0)+' '+u[i]};
+const duration=n=>n==null?'—':n.toFixed(3)+' s';
+function metrics(target,items){$(target).innerHTML=items.map(([k,v])=>'<div class="metric"><small>'+k+'</small><strong>'+String(v??'—')+'</strong></div>').join('')}
+$('run').addEventListener('click',async()=>{
+ const file=$('video').files[0],key=$('key').value.trim();
+ if(!key){$('status').textContent='Enter your Railway access key first.';return}
+ if(!file){$('status').textContent='Choose an MP4 or MOV file first.';return}
+ $('run').disabled=true;$('results').style.display='none';$('status').textContent='Uploading and checking original metadata… GOP encoding may take a while.';
+ const body=new FormData();body.append('video',file);
+ try{
+  const response=await fetch('/api/process',{method:'POST',headers:{Authorization:'Bearer '+key},body});
+  const data=await response.json();if(!response.ok)throw new Error(data.error||'Processing failed');
+  const s=data.source.video||{},o=data.output.video||{},p=data.processing;
+  metrics('summary',[
+   ['Mode',p.mode],['Input size',bytes(p.inputBytes)],['Output size',bytes(p.outputBytes)],['Size change',(p.sizeDeltaBytes>=0?'+':'')+bytes(Math.abs(p.sizeDeltaBytes))],
+   ['Output frame count',p.frameTypes.frameCount],['Keyframe positions',p.gopComparison.keyframePositionsChanged?'Changed':'Unchanged']
+  ]);
+  metrics('source', [['Video codec',s.codec],['Resolution',s.width+' × '+s.height],['FPS',s.fps],['Duration',duration(data.source.durationSeconds)],['Pixel format',s.pixelFormat],['Color transfer',s.colorTransfer],['Audio streams',(data.source.audio||[]).length],['File size',bytes(data.source.sizeBytes)]]);
+  metrics('output', [['Video codec',o.codec],['Resolution',o.width+' × '+o.height],['FPS',o.fps],['Duration',duration(data.output.durationSeconds)],['Pixel format',o.pixelFormat],['Color transfer',o.colorTransfer],['Audio streams',(data.output.audio||[]).length],['File size',bytes(data.output.sizeBytes)]]);
+  $('frames').textContent=JSON.stringify({settings:p.settings,frameTypes:p.frameTypes.frameTypes,sourceFrameTypes:p.gopComparison.source,outputFrameTypes:p.gopComparison.output,keyframePositionsChanged:p.gopComparison.keyframePositionsChanged,validation:p.validation},null,2);
+  $('download').href=data.downloadUrl;$('expiry').textContent='Output will be deleted automatically in about '+data.expiresInMinutes+' minutes.';
+  $('results').style.display='block';$('status').textContent='Processing complete. Review the comparison before downloading.';
+ }catch(err){$('status').textContent='Error: '+err.message}
+ finally{$('run').disabled=false}
+});
+</script></body></html>
