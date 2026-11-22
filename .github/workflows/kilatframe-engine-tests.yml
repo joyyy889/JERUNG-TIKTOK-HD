@@ -1,0 +1,25 @@
+name: KilatFrame Engine Tests
+
+on:
+  push:
+    branches: [kilatframe-engine]
+    paths:
+      - 'video-engine/**'
+      - '.github/workflows/kilatframe-engine-tests.yml'
+  pull_request:
+    branches: [kilatframe-engine]
+    paths:
+      - 'video-engine/**'
+      - '.github/workflows/kilatframe-engine-tests.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run engine unit tests
+        working-directory: video-engine
+        run: npm test
