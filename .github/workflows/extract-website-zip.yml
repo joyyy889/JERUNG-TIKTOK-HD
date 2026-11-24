@@ -1,0 +1,31 @@
+name: Extract uploaded website ZIP
+
+on:
+  push:
+    branches:
+      - jerung-tiktok-hd-extracted
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Extract ZIP
+        run: |
+          test -f jerung-hd-website-main.zip
+          unzip -oq jerung-hd-website-main.zip -d .
+      - name: Commit extracted files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add jerung-hd-website-main/
+          if ! git diff --cached --quiet; then
+            git commit -m "Extract website ZIP into repository"
+            git push
+          fi
