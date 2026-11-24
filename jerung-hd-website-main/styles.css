@@ -1,0 +1,1192 @@
+/* ==========================================================================
+   JERUNG HD - styles.css
+   Dark only, mobile first (360px), bilingual EN/BM video processing site.
+
+   One type family: Archivo (variable width), loaded by index.html.
+   One motion moment: the before/after comparison split.
+   Colour and shape carry the brand: solid surfaces, hairline dividers,
+   no cards, no rounded tiles, no glow, no gradients, no transforms.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Palette and layout constants
+   -------------------------------------------------------------------------- */
+:root {
+  color-scheme: dark;
+
+  /* Client palette, exact values */
+  --bg: #070b12;
+  --surface: #101720;
+  --surface2: #151f2b;
+  --line: #293847;
+  --text: #f3f7fb;
+  --muted: #9aa9b8;
+  --blue: #168ee8;
+  --cyan: #45dfff;
+  --good: #45d6a2;
+  --warn: #f2bd62;
+
+  /* Derived constants */
+  --ink-on-blue: #03121e;
+  --radius-control: 8px;
+  --radius-frame: 6px;
+  --gutter: 16px;
+  --header-h: 56px;
+  --tabbar-h: 64px;
+  --section-gap: 48px;
+  --font-sans: "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* --------------------------------------------------------------------------
+   2. Reset
+   -------------------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: auto;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 400;
+  font-stretch: 100%;
+  line-height: 1.6;
+  -webkit-text-size-adjust: 100%;
+  overflow-wrap: break-word;
+}
+
+h1,
+h2,
+p,
+figure,
+dl,
+dd,
+ol,
+fieldset {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+  margin: 0;
+}
+
+button {
+  cursor: pointer;
+  background: none;
+  border: 0;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+img {
+  max-width: 100%;
+}
+
+/* The hidden attribute controls view visibility, so it always wins. */
+[hidden] {
+  display: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   3. Focus
+   -------------------------------------------------------------------------- */
+:focus-visible {
+  outline: 3px solid var(--cyan);
+  outline-offset: 3px;
+}
+
+/* --------------------------------------------------------------------------
+   4. Page frame
+   -------------------------------------------------------------------------- */
+main {
+  width: min(100% - 2 * var(--gutter), 1120px);
+  margin-inline: auto;
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+}
+
+.view > section {
+  margin-top: var(--section-gap);
+}
+
+.view section h2 {
+  margin-bottom: 16px;
+}
+
+/* --------------------------------------------------------------------------
+   5. Skip link
+   -------------------------------------------------------------------------- */
+.skip {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  padding: 8px 12px;
+  border-radius: var(--radius-control);
+  background: var(--blue);
+  color: var(--ink-on-blue);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.skip:focus {
+  clip-path: none;
+  overflow: visible;
+  white-space: normal;
+}
+
+/* --------------------------------------------------------------------------
+   6. Header
+   -------------------------------------------------------------------------- */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: var(--header-h);
+  padding-block: 8px;
+  padding-inline: max(var(--gutter), (100% - 1120px) / 2);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.brand img {
+  display: block;
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+}
+
+.brand-name {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.site-nav {
+  display: none;
+}
+
+.lang {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-inline-start: auto;
+}
+
+.lang button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.lang button:hover {
+  color: var(--text);
+}
+
+.lang button[aria-pressed="true"] {
+  color: var(--text);
+  border-color: var(--line);
+}
+
+/* --------------------------------------------------------------------------
+   7. Mobile tab bar
+   -------------------------------------------------------------------------- */
+.tabbar {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+
+.tabbar a {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 44px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.tabbar a:hover {
+  color: var(--text);
+}
+
+.tabbar a[aria-current="page"] {
+  color: var(--cyan);
+}
+
+.tabbar a[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 28px;
+  margin-inline: auto;
+  height: 2px;
+  background: var(--cyan);
+}
+
+.tabbar svg {
+  display: block;
+  width: 24px;
+  height: 24px;
+}
+
+/* --------------------------------------------------------------------------
+   8. Hero
+   -------------------------------------------------------------------------- */
+.hero {
+  display: grid;
+  gap: 32px;
+  padding-block: 32px 0;
+}
+
+.hero-copy {
+  max-width: 65ch;
+  min-width: 0;
+}
+
+h1 {
+  font-size: clamp(2.25rem, 1.2rem + 4vw, 3.5rem);
+  font-stretch: 112%;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.02;
+}
+
+.hero-copy p {
+  max-width: 65ch;
+  margin-top: 16px;
+  color: var(--muted);
+}
+
+h2 {
+  font-size: clamp(1.25rem, 1rem + 1vw, 1.625rem);
+  font-stretch: 105%;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.actions .btn {
+  width: 100%;
+}
+
+/* --------------------------------------------------------------------------
+   9. Buttons
+   -------------------------------------------------------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+}
+
+.btn:hover {
+  background: var(--surface2);
+}
+
+.btn.primary {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: var(--ink-on-blue);
+}
+
+.btn.primary:hover {
+  background: color-mix(in srgb, var(--blue) 85%, black);
+}
+
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn:disabled:hover {
+  background: transparent;
+}
+
+.btn.primary:disabled:hover {
+  background: var(--blue);
+}
+
+/* --------------------------------------------------------------------------
+   10. Before and after comparison
+   -------------------------------------------------------------------------- */
+.compare-figure {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  min-width: 0;
+}
+
+#compare {
+  --split: 50%;
+  --split-duration: 1600ms;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-frame);
+  background: var(--surface);
+}
+
+.compare-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.compare-before {
+  clip-path: none;
+}
+
+.compare-after {
+  clip-path: inset(0 0 0 var(--split));
+  transition: clip-path var(--split-duration) ease-out;
+}
+
+/* While the handle is being used the split tracks the pointer directly. */
+#compare:has(#compare-range:active) .compare-after,
+#compare:has(#compare-range:focus) .compare-after {
+  transition: none;
+}
+
+.scene {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.compare-before .scene {
+  filter: blur(2.5px) saturate(0.75) contrast(0.9);
+}
+
+/* Divider line */
+#compare::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--split);
+  width: 2px;
+  margin-left: -1px;
+  background: var(--cyan);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Visible handle */
+#compare::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: var(--split);
+  width: 36px;
+  height: 36px;
+  margin: -18px 0 0 -18px;
+  border: 2px solid var(--cyan);
+  border-radius: 50%;
+  background: var(--surface);
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* The native range control covers the whole frame so the frame drags. */
+#compare-range {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: ew-resize;
+  touch-action: pan-y;
+  z-index: 4;
+}
+
+#compare:has(#compare-range:focus-visible) {
+  outline: 3px solid var(--cyan);
+  outline-offset: 3px;
+}
+
+.tag {
+  position: absolute;
+  top: 12px;
+  z-index: 3;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  background: rgba(7, 11, 18, 0.8);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
+.tag-before {
+  left: 12px;
+}
+
+.tag-after {
+  right: 12px;
+}
+
+figcaption {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* --------------------------------------------------------------------------
+   11. Progress rail and process steps
+   -------------------------------------------------------------------------- */
+.steps {
+  list-style: none;
+  padding: 0;
+}
+
+.steps li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 12px 0 12px 28px;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* Rule segment on the left of each step */
+.steps li::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--line);
+}
+
+/* Dot marker sitting on the rule */
+.steps li::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin-top: -5px;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  background: var(--bg);
+}
+
+.steps-process li[data-state="done"]::before {
+  border-color: var(--good);
+  background: var(--good);
+}
+
+/* --------------------------------------------------------------------------
+   12. Method lists and guidance
+   -------------------------------------------------------------------------- */
+.method-list,
+.use-avoid {
+  display: grid;
+  gap: 0;
+}
+
+.method-list > div,
+.use-avoid > div {
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+}
+
+.method-list > div:first-child,
+.use-avoid > div:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.use-avoid {
+  margin-top: 16px;
+}
+
+.method-list dt,
+.use-avoid dt {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.method-list dd,
+.use-avoid dd {
+  color: var(--muted);
+}
+
+.send-note p {
+  max-width: 65ch;
+  margin-top: 12px;
+  color: var(--muted);
+}
+
+.help {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.help p {
+  color: var(--muted);
+}
+
+/* --------------------------------------------------------------------------
+   13. Page headings and upload view
+   -------------------------------------------------------------------------- */
+.page-head {
+  display: grid;
+  gap: 8px;
+  padding-top: 32px;
+  margin-bottom: 24px;
+}
+
+.page-head h1 {
+  font-size: clamp(1.875rem, 1.2rem + 2.4vw, 2.625rem);
+}
+
+.page-head p {
+  max-width: 65ch;
+  color: var(--muted);
+}
+
+/* Route headings take focus by script after navigation. The page change is the signal, so no ring. */
+h1[tabindex="-1"]:focus {
+  outline: none;
+}
+
+input[type="file"] {
+  color: var(--muted);
+  font-size: 15px;
+}
+
+input[type="file"]::file-selector-button {
+  min-height: 44px;
+  margin-right: 12px;
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface2);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+input[type="file"]::file-selector-button:hover {
+  border-color: var(--cyan);
+}
+
+.dropzone {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 8px;
+  min-height: 180px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  text-align: center;
+  cursor: pointer;
+}
+
+.dropzone:hover {
+  border-color: var(--cyan);
+}
+
+.dropzone:focus-within {
+  outline: 3px solid var(--cyan);
+  outline-offset: 3px;
+}
+
+.dropzone-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.dropzone-hint {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.file-details {
+  display: grid;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+
+.file-details > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.file-details dt {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.file-details dd {
+  color: var(--text);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.method {
+  min-width: 0;
+  margin-top: 32px;
+  padding: 0;
+  border: 0;
+}
+
+.method legend {
+  padding: 0;
+  margin-bottom: 12px;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 10px 0;
+  cursor: pointer;
+}
+
+.option + .option {
+  border-top: 1px solid var(--line);
+}
+
+.option input[type="radio"] {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--cyan);
+}
+
+.option span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.option b {
+  font-weight: 600;
+}
+
+.option small {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.status {
+  padding-top: 32px;
+  border-top: 1px solid var(--line);
+}
+
+.status p {
+  margin-top: 8px;
+  color: var(--muted);
+}
+
+.steps-process {
+  margin-top: 20px;
+}
+
+/* --------------------------------------------------------------------------
+   14. Lifetime view and payment form
+   -------------------------------------------------------------------------- */
+.pay-grid {
+  display: grid;
+  gap: 48px;
+}
+
+.pay-summary {
+  display: grid;
+  justify-items: start;
+  align-content: start;
+  gap: 12px;
+  padding-top: 32px;
+  border-top: 1px solid var(--line);
+}
+
+.label {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.price {
+  font-size: 40px;
+  font-stretch: 112%;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.qr-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 200px;
+  aspect-ratio: 1;
+  border: 1px dashed var(--line);
+}
+
+.pay-form {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.pay-form .btn {
+  justify-self: start;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field label {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.field input {
+  width: 100%;
+  min-height: 44px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 16px;
+}
+
+.field input::placeholder {
+  color: var(--muted);
+}
+
+.field input:focus {
+  border-color: var(--cyan);
+  outline: 3px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+.preview {
+  display: block;
+  max-width: 100%;
+  max-height: 240px;
+  border-radius: var(--radius-frame);
+  object-fit: contain;
+}
+
+.empty {
+  padding: 24px 0;
+  color: var(--muted);
+}
+
+/* --------------------------------------------------------------------------
+   15. Account view
+   -------------------------------------------------------------------------- */
+.account-state {
+  display: grid;
+  justify-items: start;
+  gap: 16px;
+  padding-top: 32px;
+  border-top: 1px solid var(--line);
+}
+
+.strong {
+  font-weight: 700;
+}
+
+.view > h2 {
+  margin-top: 48px;
+  margin-bottom: 12px;
+}
+
+.stats {
+  display: grid;
+  gap: 16px;
+}
+
+.stats > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.stats dt {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.stats dd {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* --------------------------------------------------------------------------
+   16. Toast
+   -------------------------------------------------------------------------- */
+.toast {
+  position: fixed;
+  left: var(--gutter);
+  right: var(--gutter);
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 12px);
+  z-index: 50;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+}
+
+/* --------------------------------------------------------------------------
+   17. Footer
+   -------------------------------------------------------------------------- */
+.footer {
+  width: min(100% - 2 * var(--gutter), 1120px);
+  margin-inline: auto;
+  padding: 40px 0 calc(96px + env(safe-area-inset-bottom));
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* --------------------------------------------------------------------------
+   18. Visually hidden
+   -------------------------------------------------------------------------- */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
+   19. Tablet, 720px and up
+   -------------------------------------------------------------------------- */
+@media (min-width: 720px) {
+  .actions {
+    flex-direction: row;
+  }
+
+  .actions .btn {
+    width: auto;
+  }
+
+  .method-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 32px;
+  }
+
+  .method-list > div:first-child {
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+  }
+
+  .file-details {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .pay-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 48px;
+  }
+
+  .toast {
+    left: max(var(--gutter), (100% - 1120px) / 2);
+    right: auto;
+    width: min(100% - 2 * var(--gutter), 420px);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   20. Desktop, 1024px and up
+   -------------------------------------------------------------------------- */
+@media (min-width: 1024px) {
+  :root {
+    --gutter: 32px;
+    --header-h: 72px;
+    --section-gap: 64px;
+  }
+
+  /* Header navigation replaces the tab bar */
+  .site-nav {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-inline-start: auto;
+  }
+
+  .site-nav a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    color: var(--muted);
+    font-size: 16px;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .site-nav a:hover {
+    color: var(--text);
+  }
+
+  .site-nav a[aria-current="page"] {
+    color: var(--text);
+    text-decoration: underline;
+    text-decoration-color: var(--cyan);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 8px;
+  }
+
+  .lang {
+    margin-inline-start: 8px;
+  }
+
+  .site-header {
+    padding-block: 16px;
+  }
+
+  .tabbar {
+    display: none;
+  }
+
+  main {
+    padding-bottom: 0;
+  }
+
+  .footer {
+    padding-bottom: 40px;
+  }
+
+  /* Hero: copy on the left, comparison frame on the right */
+  .hero {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    align-items: center;
+    gap: 56px;
+    padding-block: 64px 0;
+  }
+
+  /* Home view: methods and send note sit side by side */
+  #view-home {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 64px;
+  }
+
+  #view-home > * {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  #view-home > .methods,
+  #view-home > .send-note {
+    flex: 1 1 calc(50% - 32px);
+  }
+
+  #view-home > section {
+    margin-top: var(--section-gap);
+  }
+
+  /* Home rail becomes a horizontal row with the rule behind the dots */
+  .rail ol.steps {
+    position: relative;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 32px;
+  }
+
+  .rail ol.steps::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 5px;
+    height: 2px;
+    background: var(--line);
+  }
+
+  .rail ol.steps li {
+    flex: 0 0 auto;
+    align-items: flex-start;
+    padding: 20px 0 0 16px;
+    white-space: nowrap;
+  }
+
+  .rail ol.steps li::after {
+    display: none;
+  }
+
+  .rail ol.steps li::before {
+    top: 1px;
+    margin-top: 0;
+  }
+
+  /* Upload view: status sits beside the method field set */
+  #view-upload {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "head head"
+      "drop drop"
+      "info info"
+      "method status"
+      "action status";
+    column-gap: 48px;
+    row-gap: 32px;
+    align-items: start;
+  }
+
+  #view-upload > .page-head {
+    grid-area: head;
+    margin-bottom: 0;
+  }
+
+  #view-upload > .dropzone {
+    grid-area: drop;
+  }
+
+  #view-upload > .file-details {
+    grid-area: info;
+    margin-top: 0;
+  }
+
+  #view-upload > .method {
+    grid-area: method;
+    margin-top: 0;
+  }
+
+  #view-upload > .actions {
+    grid-area: action;
+    margin-top: 0;
+  }
+
+  #view-upload > .status {
+    grid-area: status;
+    margin-top: 0;
+  }
+
+  .toast {
+    bottom: 24px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   21. Reduced motion
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}

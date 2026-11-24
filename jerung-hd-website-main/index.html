@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#070b12">
+  <link rel="icon" href="assets/logo.jpg" type="image/jpeg">
+  <title>JERUNG HD</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap">
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main" data-i18n="skip">Skip to content</a>
+
+  <header class="site-header">
+    <a class="brand" href="#home">
+      <img src="assets/logo.jpg" alt="" width="40" height="40">
+      <span class="brand-name">JERUNG HD</span>
+    </a>
+    <nav class="site-nav" aria-label="Main">
+      <a data-route="home" href="#home" data-i18n="navHome">Home</a>
+      <a data-route="upload" href="#upload" data-i18n="navUpload">Upload</a>
+      <a data-route="lifetime" href="#lifetime" data-i18n="navLifetime">Lifetime</a>
+      <a data-route="account" href="#account" data-i18n="navAccount">Account</a>
+    </nav>
+    <div class="lang" role="group" data-i18n-aria="langLabel" aria-label="Language">
+      <button type="button" data-lang="en" aria-pressed="true">EN</button>
+      <button type="button" data-lang="bm" aria-pressed="false">BM</button>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- Home -->
+    <section class="view" data-view="home" id="view-home">
+      <div class="hero">
+        <div class="hero-copy">
+          <h1 tabindex="-1" data-i18n="heroTitle">Upload HD and 4K video without quality loss.</h1>
+          <p data-i18n="heroText">Keep the detail your video was shot with. Drag the handle to compare.</p>
+          <div class="actions">
+            <a class="btn primary" href="#upload" data-i18n="heroCta">Upload a video</a>
+          </div>
+        </div>
+        <figure class="compare-figure">
+          <div id="compare" class="compare">
+            <div class="compare-layer compare-before">
+              <svg class="scene" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="jerung-scene-sky" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#0c2f4d"></stop>
+                    <stop offset="1" stop-color="#070b12"></stop>
+                  </linearGradient>
+                  <pattern id="jerung-scene-lines" width="6" height="6" patternUnits="userSpaceOnUse">
+                    <rect x="0" y="0" width="6" height="1" fill="#45dfff" fill-opacity="0.14"></rect>
+                  </pattern>
+                </defs>
+                <rect x="0" y="0" width="1600" height="900" fill="url(#jerung-scene-sky)"></rect>
+                <rect x="0" y="430" width="1600" height="110" fill="#168ee8" fill-opacity="0.18"></rect>
+                <rect x="0" y="428" width="1600" height="2" fill="#45dfff" fill-opacity="0.45"></rect>
+                <path d="M0 585 L230 500 L410 548 L620 452 L860 540 L1090 486 L1330 556 L1600 498 L1600 660 L0 660 Z" fill="#168ee8" fill-opacity="0.35"></path>
+                <rect x="0" y="600" width="1600" height="300" fill="url(#jerung-scene-lines)"></rect>
+              </svg>
+            </div>
+            <div class="compare-layer compare-after">
+              <svg class="scene" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+                <rect x="0" y="0" width="1600" height="900" fill="url(#jerung-scene-sky)"></rect>
+                <rect x="0" y="430" width="1600" height="110" fill="#168ee8" fill-opacity="0.18"></rect>
+                <rect x="0" y="428" width="1600" height="2" fill="#45dfff" fill-opacity="0.45"></rect>
+                <path d="M0 585 L230 500 L410 548 L620 452 L860 540 L1090 486 L1330 556 L1600 498 L1600 660 L0 660 Z" fill="#168ee8" fill-opacity="0.35"></path>
+                <rect x="0" y="600" width="1600" height="300" fill="url(#jerung-scene-lines)"></rect>
+              </svg>
+            </div>
+            <span class="tag tag-before" data-i18n="before">Before</span>
+            <span class="tag tag-after" data-i18n="after">After</span>
+            <input id="compare-range" type="range" min="0" max="100" value="50" data-i18n-aria="compareLabel" aria-label="Compare before and after">
+          </div>
+          <figcaption data-i18n="compareNote">Simulated preview. Real before and after clips can be added later.</figcaption>
+        </figure>
+      </div>
+
+      <section class="rail">
+        <h2 data-i18n="howTitle">How it works</h2>
+        <ol class="steps">
+          <li data-step="upload" data-i18n="stepUpload">Upload</li>
+          <li data-step="check" data-i18n="stepCheck">Check details</li>
+          <li data-step="process" data-i18n="stepProcess">Process</li>
+          <li data-step="verify" data-i18n="stepVerify">Verify</li>
+          <li data-step="download" data-i18n="stepDownload">Download MP4</li>
+        </ol>
+      </section>
+
+      <section class="methods">
+        <h2 data-i18n="methodsTitle">Two processing methods</h2>
+        <dl class="method-list">
+          <div>
+            <dt data-i18n="methodJerung">JERUNG method</dt>
+            <dd data-i18n="methodJerungText">Preserve the original video quality.</dd>
+          </div>
+          <div>
+            <dt data-i18n="methodHdr">HDR</dt>
+            <dd data-i18n="methodHdrText">Convert SDR to HDR10.</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="send-note">
+        <h2 data-i18n="sendFileTitle">Send as a file, not a gallery video</h2>
+        <p data-i18n="sendFileText">Send the video as a File or Document to keep full quality. Sending it as a Video or Gallery item can lower its quality.</p>
+        <dl class="use-avoid">
+          <div>
+            <dt data-i18n="useLabel">Use</dt>
+            <dd data-i18n="fileOption">File or Document</dd>
+          </div>
+          <div>
+            <dt data-i18n="avoidLabel">Avoid</dt>
+            <dd data-i18n="galleryOption">Video or Gallery</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="help">
+        <p data-i18n="needHelp">Need help?</p>
+        <a class="btn" href="https://wa.me/601128122804" target="_blank" rel="noopener noreferrer" data-i18n="whatsapp">Message us on WhatsApp</a>
+      </section>
+    </section>
+
+    <!-- Upload -->
+    <section class="view" data-view="upload" id="view-upload" hidden>
+      <header class="page-head">
+        <h1 tabindex="-1" data-i18n="uploadTitle">Upload a video</h1>
+        <p data-i18n="uploadIntro">Choose an MP4 or MOV file, then check the details.</p>
+      </header>
+
+      <label class="dropzone" for="video-file">
+        <span class="dropzone-title" data-i18n="dropTitle">Choose a video</span>
+        <span class="dropzone-hint" data-i18n="dropHint">MP4 or MOV</span>
+        <input id="video-file" class="sr-only" type="file" accept="video/mp4,video/quicktime,.mp4,.mov">
+      </label>
+
+      <dl id="file-details" class="file-details" hidden>
+        <div>
+          <dt data-i18n="fileName">File name</dt>
+          <dd id="file-name"></dd>
+        </div>
+        <div>
+          <dt data-i18n="fileSize">Size</dt>
+          <dd id="file-size"></dd>
+        </div>
+        <div>
+          <dt data-i18n="fileType">Type</dt>
+          <dd id="file-type"></dd>
+        </div>
+      </dl>
+
+      <fieldset class="method">
+        <legend data-i18n="chooseMethod">Processing method</legend>
+        <label class="option">
+          <input type="radio" name="method" value="jerung" checked>
+          <span>
+            <b data-i18n="methodJerung">JERUNG method</b>
+            <small data-i18n="methodJerungText">Preserve the original video quality.</small>
+          </span>
+        </label>
+        <label class="option">
+          <input type="radio" name="method" value="hdr">
+          <span>
+            <b data-i18n="methodHdr">HDR</b>
+            <small data-i18n="methodHdrText">Convert SDR to HDR10.</small>
+          </span>
+        </label>
+      </fieldset>
+
+      <div class="actions">
+        <button id="continue-btn" class="btn primary" type="button" disabled data-i18n="continue">Continue</button>
+        <button id="remove-btn" class="btn" type="button" disabled data-i18n="remove">Remove video</button>
+      </div>
+
+      <section class="status">
+        <h2 data-i18n="statusTitle">Processing status</h2>
+        <p id="status-text" aria-live="polite">Select a video to begin.</p>
+        <ol class="steps steps-process">
+          <li data-step="upload" data-state="idle" data-i18n="stepUpload">Upload</li>
+          <li data-step="check" data-state="idle" data-i18n="stepCheck">Check details</li>
+          <li data-step="process" data-state="idle" data-i18n="stepProcess">Process</li>
+          <li data-step="verify" data-state="idle" data-i18n="stepVerify">Verify</li>
+          <li data-step="download" data-state="idle" data-i18n="stepDownload">Download MP4</li>
+        </ol>
+      </section>
+    </section>
+
+    <!-- Lifetime -->
+    <section class="view" data-view="lifetime" id="view-lifetime" hidden>
+      <header class="page-head">
+        <h1 tabindex="-1" data-i18n="lifetimeTitle">Lifetime access</h1>
+        <p data-i18n="lifetimeIntro">Pay once, then send your receipt for review.</p>
+      </header>
+
+      <div class="pay-grid">
+        <div class="pay-summary">
+          <p class="label" data-i18n="amount">Amount</p>
+          <p class="price">RM XX.XX</p>
+          <p class="hint" data-i18n="priceNote">The final price and payment QR are provided by the project team.</p>
+          <div class="qr-placeholder" role="img" data-i18n-aria="qrAlt" aria-label="Payment QR code placeholder"></div>
+        </div>
+
+        <form id="payment-form" class="pay-form">
+          <div class="field">
+            <label for="sender" data-i18n="senderName">Sender name</label>
+            <input id="sender" name="sender" type="text" required autocomplete="name" data-i18n-placeholder="senderPlaceholder" placeholder="Enter the sender name">
+          </div>
+          <div class="field">
+            <label for="receipt" data-i18n="receipt">Payment receipt</label>
+            <input id="receipt" name="receipt" type="file" accept="image/*,.pdf" required>
+            <p class="hint" data-i18n="receiptHint">Image or PDF</p>
+          </div>
+          <div id="receipt-preview" hidden></div>
+          <button class="btn primary" type="submit" data-i18n="submitPayment">Submit payment</button>
+          <p class="hint" data-i18n="paymentBackend">Payments are not sent yet. Payment review is not connected.</p>
+        </form>
+      </div>
+
+      <section>
+        <h2 data-i18n="paymentHistory">Payment history</h2>
+        <p class="empty" data-i18n="noPayment">No payment records yet.</p>
+      </section>
+    </section>
+
+    <!-- Account -->
+    <section class="view" data-view="account" id="view-account" hidden>
+      <header class="page-head">
+        <h1 tabindex="-1" data-i18n="accountTitle">Account</h1>
+        <p data-i18n="accountIntro">Sign in to see your usage and payment status.</p>
+      </header>
+
+      <div class="account-state">
+        <p class="strong" data-i18n="notSignedIn">Not signed in</p>
+        <button id="google-btn" class="btn primary" type="button" data-i18n="continueGoogle">Continue with Google</button>
+        <p class="hint" data-i18n="oauthNote">Google sign-in will be enabled after backend integration.</p>
+      </div>
+
+      <h2 data-i18n="usage">Usage</h2>
+      <dl class="stats">
+        <div>
+          <dt data-i18n="trialLeft">Free trial left</dt>
+          <dd data-i18n="notAvailable">Available after sign-in</dd>
+        </div>
+        <div>
+          <dt data-i18n="paidCredits">Paid credits</dt>
+          <dd data-i18n="notAvailable">Available after sign-in</dd>
+        </div>
+        <div>
+          <dt data-i18n="videosProcessed">Videos processed</dt>
+          <dd data-i18n="notAvailable">Available after sign-in</dd>
+        </div>
+      </dl>
+
+      <section class="help">
+        <h2 data-i18n="needHelp">Need help?</h2>
+        <a class="btn" href="https://wa.me/601128122804" target="_blank" rel="noopener noreferrer" data-i18n="whatsapp">Message us on WhatsApp</a>
+      </section>
+    </section>
+  </main>
+
+  <nav class="tabbar" aria-label="Main">
+    <a data-route="home" href="#home">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+        <path d="M3.75 10.75 12 4l8.25 6.75"></path>
+        <path d="M5.75 9.5v9.25a1.25 1.25 0 0 0 1.25 1.25h2.75v-4.5h4.5v4.5H17a1.25 1.25 0 0 0 1.25-1.25V9.5"></path>
+      </svg>
+      <span data-i18n="navHome">Home</span>
+    </a>
+    <a data-route="upload" href="#upload">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+        <path d="M12 15.25V4.5"></path>
+        <path d="M7.75 8.75 12 4.5l4.25 4.25"></path>
+        <path d="M4.5 14.75v3.5a1.75 1.75 0 0 0 1.75 1.75h11.5a1.75 1.75 0 0 0 1.75-1.75v-3.5"></path>
+      </svg>
+      <span data-i18n="navUpload">Upload</span>
+    </a>
+    <a data-route="lifetime" href="#lifetime">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+        <circle cx="7.5" cy="12" r="3.75"></circle>
+        <path d="M11.25 12h9"></path>
+        <path d="M17 12v3"></path>
+        <path d="M20.25 12v2.25"></path>
+      </svg>
+      <span data-i18n="navLifetime">Lifetime</span>
+    </a>
+    <a data-route="account" href="#account">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+        <circle cx="12" cy="8" r="3.5"></circle>
+        <path d="M5 19.75a7 7 0 0 1 14 0"></path>
+      </svg>
+      <span data-i18n="navAccount">Account</span>
+    </a>
+  </nav>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <footer class="footer">
+    <p data-i18n="footer">JERUNG HD. Backend services are not connected in this preview.</p>
+  </footer>
+</body>
+</html>
