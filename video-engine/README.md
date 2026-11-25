@@ -1,28 +1,48 @@
-# JERUNG TIKTOK HD — RTX Fury-style video engine
+# JERUNG TIKTOK HD — video engine
 
-This is an isolated Node.js video-engine module added to the repository. It does not change the existing `studio-web` frontend. The current repository did not contain the WhatsApp bot/backend entry point, so this module is exposed as a CLI and is ready to be called by the VPS bot when that backend source is added.
+This isolated Node.js video engine does not modify the existing `studio-web` frontend.
 
-## What it does
+## Processing modes
 
-1. **Probe first:** reads codec, resolution, frame rate, duration and audio streams with FFprobe.
-2. **Original / stream-copy path:** remuxes MP4/MOV to MP4 using FFmpeg `-c copy` and `-movflags +faststart`. It does not invoke a video encoder.
-3. **Integrity checks:** compares FFprobe packet SHA-256 hashes and decoded `framemd5` checksums before accepting the stream-copy output.
-4. **Property checks:** rejects output if resolution, frame rate, duration or the presence of audio changes unexpectedly.
-5. **One fallback only:** if remux or integrity verification fails, it performs one H.264 fallback encode, with no scaling and passthrough frame timing. AAC audio is used in this fallback.
-6. **Optional NVIDIA path:** set `JERUNG_USE_NVENC=1` to use `h264_nvenc` only when the installed FFmpeg build exposes that encoder. Otherwise it uses `libx264`.
+The engine supports two modes, selected using `JERUNG_ENCODE_MODE`:
+
+- `remux-first` (default): preserves the compressed video bitstream using stream-copy/remux. If integrity verification fails, one adaptive x264 fallback is attempted.
+- `adaptive`: deliberately re-encodes every input with libx264. This rebuilds the I/P/B frame decisions and GOP layout using per-input settings.
+
+## Adaptive encoding
+
+In adaptive mode, FFprobe metadata is used to choose a conservative starting CRF and GOP ceiling. The current heuristic considers resolution, nominal frame rate and approximate bits-per-pixel-per-frame. It is a bounded starting-point heuristic, not a claim that the mathematically optimal CRF can be known from metadata alone.
+
+The encoder configures:
+
+- libx264 with CRF selected per input (default range 16–22)
+- B-frames enabled (3)
+- GOP maximum based on input frame rate (approximately two seconds)
+- minimum keyframe interval based on input frame rate (approximately half a second)
+- scene-cut keyframe decisions enabled
+- closed GOP
+- source resolution and frame timing retained (no scaling, `-fps_mode passthrough`)
+- audio stream-copy in the adaptive path
+
+Override CRF using `JERUNG_CRF` (0–51), or preset using `JERUNG_X264_PRESET`. CRF is a quality target, not a file-size cap: output may be larger than the source. Lower CRF means higher quality and generally larger files.
 
 ## Requirements
 
 - Node.js 20+
-- FFmpeg and FFprobe installed on the VPS and available in PATH
-- For NVIDIA encoding: compatible NVIDIA GPU, driver and FFmpeg build with `h264_nvenc`
+- FFmpeg and FFprobe installed and available in PATH
+- FFmpeg build with libx264 for adaptive mode
 
 ## Run
 
 ```bash
 cd video-engine
 npm test
+
+# Existing integrity-first behavior
 npm run optimize -- /path/to/input.mp4 /path/to/output.mp4
+
+# Force re-encode and rebuild frame/GOP structure
+JERUNG_ENCODE_MODE=adaptive npm run optimize -- /path/to/input.mp4 /path/to/output.mp4
 ```
 
 Environment variables:
@@ -33,12 +53,12 @@ Environment variables:
 | `FFPROBE_PATH` | `ffprobe` | FFprobe executable |
 | `MAX_INPUT_BYTES` | `157286400` | Maximum input size (150 MiB) |
 | `FFMPEG_TIMEOUT_MS` | `900000` | Per-process timeout |
-| `JERUNG_USE_NVENC` | `0` | Enable NVENC for the fallback encode |
+| `JERUNG_ENCODE_MODE` | `remux-first` | `remux-first` or `adaptive` |
+| `JERUNG_CRF` | auto | Optional manual x264 CRF override, 0–51 |
+| `JERUNG_X264_PRESET` | `medium` | x264 speed/compression preset |
 
-## Important limits — what “RTX Fury-style” means here
+## Important limits
 
-This implements the reproducible, low-risk part of the researched workflow: container remuxing, fast-start layout, stream preservation, metadata carry-over and integrity verification. It does **not** promise to bypass TikTok's server-side transcoding; no reliable public evidence proves any optimizer can guarantee that.
+Re-encoding necessarily changes compressed frame data and may alter visual details. The engine validates resolution, frame rate, duration and audio presence, but these checks do not prove perceptual equivalence. Run visual quality metrics and device playback tests on representative source clips before enabling adaptive mode in production.
 
-The research also discussed editing MP4 sample tables (`stts`, `ctts`, `stsc`), changing brands/handler fields and adding “ghost”/inflated sample entries. These are not automatically applied here. They can invalidate chunk offsets, timestamps, sample counts or playback, and the research did not establish that they improve TikTok's output. They should only be added after a separate fixture-based MP4 box parser/writer and device playback tests exist.
-
-The fallback is intentionally a last resort and does not upscale, downscale or force a new nominal frame rate. Re-encoded output cannot have identical packet/frame hashes by definition, so its report clearly labels those checks as not applicable.
+This does not guarantee bypassing TikTok's server-side transcoding. No such guarantee is made.
