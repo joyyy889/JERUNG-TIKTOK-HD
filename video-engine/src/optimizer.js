@@ -7,6 +7,7 @@ const MAX_INPUT_BYTES = Number(process.env.MAX_INPUT_BYTES || 150 * 1024 * 1024)
 const FFMPEG = process.env.FFMPEG_PATH || 'ffmpeg';
 const FFPROBE = process.env.FFPROBE_PATH || 'ffprobe';
 const TIMEOUT_MS = Number(process.env.FFMPEG_TIMEOUT_MS || 15 * 60 * 1000);
+const ENCODE_MODE = (process.env.JERUNG_ENCODE_MODE || 'remux-first').toLowerCase();
 
 export function run(command, args, { timeoutMs = TIMEOUT_MS, maxOutput = 8 * 1024 * 1024 } = {}) {
   return new Promise((resolve, reject) => {
@@ -47,11 +48,7 @@ export function run(command, args, { timeoutMs = TIMEOUT_MS, maxOutput = 8 * 102
 
 export async function probe(file) {
   const { stdout } = await run(FFPROBE, [
-    '-v', 'error',
-    '-show_format',
-    '-show_streams',
-    '-of', 'json',
-    file
+    '-v', 'error', '-show_format', '-show_streams', '-of', 'json', file
   ]);
   return JSON.parse(stdout);
 }
@@ -86,9 +83,7 @@ export function validatePreservedProperties(before, after) {
   }
   const fpsA = parseRate(a.avg_frame_rate) ?? parseRate(a.r_frame_rate);
   const fpsB = parseRate(b.avg_frame_rate) ?? parseRate(b.r_frame_rate);
-  if (!near(fpsA, fpsB, 0.01)) {
-    throw new Error(`Frame rate changed: ${fpsA} -> ${fpsB}`);
-  }
+  if (!near(fpsA, fpsB, 0.01)) throw new Error(`Frame rate changed: ${fpsA} -> ${fpsB}`);
   if (audioStreams(before).length > 0 && audioStreams(after).length === 0) {
     throw new Error('Audio stream was lost');
   }
@@ -98,27 +93,62 @@ export function validatePreservedProperties(before, after) {
   return { width: b.width, height: b.height, fps: fpsB, duration: duration(after) };
 }
 
+/**
+ * Select an initial x264 CRF and GOP ceiling from probed source characteristics.
+ * CRF is a quality target, not a file-size target. The bounded heuristics are
+ * deliberately conservative; they do not claim to infer the source's true
+ * optimal quality. Users can override with JERUNG_CRF.
+ */
+export function chooseAdaptiveEncoding(video, sourceBytes) {
+  const width = Number(video.width) || 0;
+  const height = Number(video.height) || 0;
+  const fps = parseRate(video.avg_frame_rate) ?? parseRate(video.r_frame_rate) ?? 30;
+  const bitrate = Number(video.bit_rate) || (sourceBytes > 0 && Number(video.duration) > 0
+    ? (sourceBytes * 8) / Number(video.duration)
+    : 0);
+
+  let crf = 19;
+  const pixels = width * height;
+  if (pixels >= 3840 * 2160) crf = 18;
+  else if (pixels >= 2560 * 1440) crf = 18.5;
+  else if (pixels >= 1920 * 1080) crf = 19;
+  else crf = 20;
+
+  // Do not force aggressive quality loss on already low-bitrate inputs.
+  const bitsPerPixelFrame = bitrate > 0 && pixels > 0 && fps > 0
+    ? bitrate / (pixels * fps)
+    : null;
+  if (bitsPerPixelFrame != null && bitsPerPixelFrame < 0.035) crf = Math.max(16, crf - 1.5);
+  if (bitsPerPixelFrame != null && bitsPerPixelFrame > 0.16) crf = Math.min(22, crf + 1);
+
+  const gopSeconds = 2;
+  const maxGop = Math.max(12, Math.min(300, Math.round(fps * gopSeconds)));
+  const minGop = Math.max(5, Math.min(maxGop, Math.round(fps * 0.5)));
+  return {
+    crf: Math.max(16, Math.min(22, Number(crf.toFixed(1)))),
+    preset: process.env.JERUNG_X264_PRESET || 'medium',
+    maxGop,
+    minGop,
+    bFrames: 3,
+    sceneCut: 40,
+    fps
+  };
+}
+
 async function packetHashes(file) {
   const { stdout } = await run(FFPROBE, [
-    '-v', 'error',
-    '-show_packets',
-    '-show_data_hash', 'sha256',
-    '-show_entries', 'packet=codec_type,data_hash',
-    '-of', 'json',
-    file
+    '-v', 'error', '-show_packets', '-show_data_hash', 'sha256',
+    '-show_entries', 'packet=codec_type,data_hash', '-of', 'json', file
   ], { timeoutMs: TIMEOUT_MS, maxOutput: 64 * 1024 * 1024 });
   const parsed = JSON.parse(stdout);
   return (parsed.packets ?? []).map(packet => `${packet.codec_type}:${packet.data_hash ?? 'missing'}`);
 }
 
 async function frameHashes(file) {
-  const { stdout, stderr } = await run(FFMPEG, [
-    '-v', 'error', '-i', file,
-    '-map', '0:v:0',
-    '-f', 'framemd5', '-'
+  const { stdout } = await run(FFMPEG, [
+    '-v', 'error', '-i', file, '-map', '0:v:0', '-f', 'framemd5', '-'
   ], { timeoutMs: TIMEOUT_MS, maxOutput: 64 * 1024 * 1024 });
-  const output = stdout || stderr;
-  return output.split(/\r?\n/)
+  return stdout.split(/\r?\n/)
     .filter(line => line && !line.startsWith('#'))
     .map(line => line.split(',').at(-1).trim())
     .filter(Boolean);
@@ -133,45 +163,63 @@ async function verifyStreamCopy(input, output, before, after) {
   const [inputPackets, outputPackets, inputFrames, outputFrames] = await Promise.all([
     packetHashes(input), packetHashes(output), frameHashes(input), frameHashes(output)
   ]);
-  if (!sameList(inputPackets, outputPackets)) {
-    throw new Error('Compressed packet hashes differ; stream-copy integrity check failed');
-  }
-  if (!sameList(inputFrames, outputFrames)) {
-    throw new Error('Decoded frame hashes differ; visual-frame integrity check failed');
-  }
-  return {
-    packetHashesMatch: true,
-    decodedFrameHashesMatch: true,
-    videoFrameCount: inputFrames.length,
-    packetCount: inputPackets.length
-  };
+  if (!sameList(inputPackets, outputPackets)) throw new Error('Compressed packet hashes differ; stream-copy integrity check failed');
+  if (!sameList(inputFrames, outputFrames)) throw new Error('Decoded frame hashes differ; visual-frame integrity check failed');
+  return { packetHashesMatch: true, decodedFrameHashesMatch: true, videoFrameCount: inputFrames.length, packetCount: inputPackets.length };
 }
 
-async function encoderAvailable(name) {
-  try {
-    const { stdout, stderr } = await run(FFMPEG, ['-hide_banner', '-encoders'], { timeoutMs: 15000 });
-    return (stdout + stderr).includes(name);
-  } catch {
-    return false;
-  }
-}
-
-async function buildFallbackArgs(input, output) {
-  const useNvenc = process.env.JERUNG_USE_NVENC === '1' && await encoderAvailable('h264_nvenc');
-  const videoArgs = useNvenc
-    ? ['-c:v', 'h264_nvenc', '-preset', 'p5', '-rc', 'vbr', '-cq', '19', '-b:v', '0']
-    : ['-c:v', 'libx264', '-preset', 'medium', '-crf', '18'];
+function buildX264Args(settings) {
+  const params = [
+    `keyint=${settings.maxGop}`,
+    `min-keyint=${settings.minGop}`,
+    `scenecut=${settings.sceneCut}`,
+    `bframes=${settings.bFrames}`,
+    'open-gop=0',
+    'rc-lookahead=40'
+  ].join(':');
   return [
+    '-c:v', 'libx264',
+    '-preset', settings.preset,
+    '-crf', String(settings.crf),
+    '-bf', String(settings.bFrames),
+    '-g', String(settings.maxGop),
+    '-keyint_min', String(settings.minGop),
+    '-sc_threshold', String(settings.sceneCut),
+    '-x264-params', params
+  ];
+}
+
+export async function encodeAdaptive(input, output, before, inputBytes) {
+  const sourceVideo = primaryVideo(before);
+  const settings = {
+    ...chooseAdaptiveEncoding({ ...sourceVideo, duration: duration(before) }, inputBytes),
+    ...(process.env.JERUNG_CRF ? { crf: Number(process.env.JERUNG_CRF) } : {})
+  };
+  if (!Number.isFinite(settings.crf) || settings.crf < 0 || settings.crf > 51) {
+    throw new Error('JERUNG_CRF must be between 0 and 51');
+  }
+  const args = [
     '-hide_banner', '-y', '-i', input,
     '-map', '0:v:0', '-map', '0:a?',
     '-map_metadata', '0', '-map_chapters', '0',
-    ...videoArgs,
-    '-pix_fmt', 'yuv420p',
+    ...buildX264Args(settings),
+    '-pix_fmt', sourceVideo.pix_fmt || 'yuv420p',
     '-fps_mode', 'passthrough',
-    '-c:a', 'aac', '-b:a', '192k',
+    '-c:a', 'copy',
     '-movflags', '+faststart',
     output
   ];
+  await run(FFMPEG, args);
+  const after = await probe(output);
+  const properties = validatePreservedProperties(before, after);
+  return {
+    settings,
+    properties,
+    outputBytes: (await stat(output)).size,
+    sourceBytes: inputBytes,
+    sizeDeltaBytes: (await stat(output)).size - inputBytes,
+    note: 'CRF targets visual quality; output size can be larger or smaller than source.'
+  };
 }
 
 export async function optimizeVideo(input, output) {
@@ -182,30 +230,34 @@ export async function optimizeVideo(input, output) {
   if (!/\.mp4$/i.test(outputPath)) throw new Error('Output filename must end in .mp4');
 
   const inputStat = await stat(inputPath);
-  if (inputStat.size > MAX_INPUT_BYTES) {
-    throw new Error(`Input exceeds limit of ${Math.round(MAX_INPUT_BYTES / 1024 / 1024)} MB`);
-  }
+  if (inputStat.size > MAX_INPUT_BYTES) throw new Error(`Input exceeds limit of ${Math.round(MAX_INPUT_BYTES / 1024 / 1024)} MB`);
   await access(inputPath);
   await mkdir(path.dirname(outputPath), { recursive: true });
 
   const before = await probe(inputPath);
   if (!primaryVideo(before)) throw new Error('Input contains no video stream');
-
   const tempPath = outputPath.replace(/\.mp4$/i, '.jerung-tmp.mp4');
   await rm(tempPath, { force: true });
 
   try {
-    // RTX Fury-style "Original" path: rewrite the MP4 container only.
-    // No video/audio encoder is invoked in this first pass.
+    if (ENCODE_MODE === 'adaptive') {
+      const encoded = await encodeAdaptive(inputPath, tempPath, before, inputStat.size);
+      await rename(tempPath, outputPath);
+      return {
+        success: true,
+        mode: 'adaptive-x264-reencode',
+        output: outputPath,
+        ...encoded
+      };
+    }
+
+    // Default compatibility path: preserve original compressed video bitstream.
     const copyArgs = [
       '-hide_banner', '-y', '-i', inputPath,
       '-map', '0:v:0', '-map', '0:a?',
       '-map_metadata', '0', '-map_chapters', '0',
-      '-c', 'copy',
-      '-movflags', '+faststart',
-      tempPath
+      '-c', 'copy', '-movflags', '+faststart', tempPath
     ];
-
     try {
       await run(FFMPEG, copyArgs);
       const after = await probe(tempPath);
@@ -224,26 +276,33 @@ export async function optimizeVideo(input, output) {
       };
     } catch (copyError) {
       await rm(tempPath, { force: true });
-      // Single controlled fallback only. Never scale or deliberately change FPS.
-      const fallbackArgs = await buildFallbackArgs(inputPath, tempPath);
-      await run(FFMPEG, fallbackArgs);
+      // A single controlled fallback if stream copy cannot be verified.
+      const settings = chooseAdaptiveEncoding({ ...primaryVideo(before), duration: duration(before) }, inputStat.size);
+      await run(FFMPEG, [
+        '-hide_banner', '-y', '-i', inputPath,
+        '-map', '0:v:0', '-map', '0:a?',
+        '-map_metadata', '0', '-map_chapters', '0',
+        ...buildX264Args(settings),
+        '-pix_fmt', primaryVideo(before).pix_fmt || 'yuv420p',
+        '-fps_mode', 'passthrough',
+        '-c:a', 'copy', '-movflags', '+faststart', tempPath
+      ]);
       const after = await probe(tempPath);
       const properties = validatePreservedProperties(before, after);
       await rename(tempPath, outputPath);
       return {
         success: true,
-        mode: 'single-pass-h264-fallback',
+        mode: 'adaptive-x264-fallback',
         fallbackReason: copyError.message,
         output: outputPath,
         inputBytes: inputStat.size,
         outputBytes: (await stat(outputPath)).size,
-        sourceVideoCodec: primaryVideo(before).codec_name,
-        outputVideoCodec: primaryVideo(after).codec_name,
+        settings,
         properties,
         integrity: {
           packetHashesMatch: false,
           decodedFrameHashesMatch: 'not-applicable-after-re-encode',
-          note: 'Fallback re-encodes once; verify visual quality before publishing.'
+          note: 'Re-encoding changes compressed frames; inspect output quality before publishing.'
         }
       };
     }
